@@ -79,13 +79,9 @@ def find_peaks(data, query=True, ID=None):
     for t in range(9, data.shape[0]-9):
         for b in range(1, data.shape[1]-1):
             # test neighbors
-            if data[t,b] <= data[t-1][b]:
+            if data[t,b] <= data[t-1][b] or data[t,b] <= data[t+1][b]:
                 continue
-            if data[t,b] <= data[t+1][b]:
-                continue
-            if data[t,b] <= data[t][b-1]:
-                continue
-            if data[t,b] <= data[t][b+1]:
+            elif data[t,b] <= data[t][b+1] or data[t,b] <= data[t][b+1]:
                 continue
 
             # add peak if it's the first one in band
