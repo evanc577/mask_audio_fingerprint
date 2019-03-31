@@ -8,6 +8,8 @@ import time
 import os
 import subprocess
 import sounddevice
+import plyvel
+import ujson
 
 def downsample_4k(data, fs):
     return signal.resample_poly(data, 1, 11)
@@ -71,9 +73,8 @@ def find_peaks(data, query=True, ID=None):
         raise Exception("Error: ID must be specified when adding song")
 
     matches = {}
-    conn = sqlite3.connect('mask.db')
-    c = conn.cursor()
-    c.arraysize = 10
+    db = plyvel.DB('mask_level.db', create_if_missing=True)
+    fpdb = db.prefixed_db(b'fp-')
 
     peaks = [[] for i in range(data.shape[1])]
 
@@ -188,28 +189,43 @@ def find_peaks(data, query=True, ID=None):
             band_bits[3] = False if (b-1) & 0x1 == 0 else True
 
             fp = bitarray(band_bits + bits)
+            fp_int = int(fp.to01(),2)
             if query: # lookup in database
-                fp_int = int(fp.to01(),2)
                 for idx_1 in range(26):
                     for idx_2 in range(26):
                         temp_fp = (1 << idx_1) ^ fp_int
                         if idx_1 != idx_2:
                             temp_fp ^= (1 << idx_2)
-                        prep = (temp_fp,)
-                        c.execute('SELECT * FROM fingerprints WHERE fp=?', prep)
-                        temp = c.fetchall()
+
+                        temp_k = bytes(ujson.dumps(temp_fp), 'ascii')
+                        temp = fpdb.get(temp_k)
+
+                        if temp == None:
+                            continue
+
+                        temp = ujson.loads(temp.decode('ascii'))
+
                         for match in temp:
-                            if match[1] not in matches:
-                                matches[match[1]] = [[],[]]
-                            matches[match[1]][0].append(match[2])
-                            matches[match[1]][1].append(t)
+                            if match[0] not in matches:
+                                matches[match[0]] = [[],[]]
+                            matches[match[0]][0].append(match[1])
+                            matches[match[0]][1].append(t)
             else: # add query to database
-                prep = (int(fp.to01(),2), ID, t)        
-                c.execute('INSERT INTO fingerprints VALUES(?, ?, ?)', prep)
+                prep = (ID, t)
+                temp_k = bytes(ujson.dumps(fp_int), 'ascii')
+                temp = fpdb.get(temp_k)
+                if temp == None:
+                    temp = [prep]
+                else:
+                    temp = ujson.loads(temp.decode('ascii'))
+                    temp.append(prep)
 
+                temp_v = bytes(ujson.dumps(temp), 'ascii')
 
-    conn.commit()
-    conn.close()
+                fpdb.put(temp_k, temp_v)
+
+    db.close()
+
     if query:
         return matches
     else:
@@ -242,22 +258,18 @@ def add_one_song(path):
     h = hashlib.sha256(data.view()).hexdigest()
 
     # set up sqlite
-    conn = sqlite3.connect('mask.db')
-    c = conn.cursor()
+    db = plyvel.DB('mask_level.db', create_if_missing=True)
+    sdb = db.prefixed_db(b's-')
 
     # test if song is already in the database
-    prep = (h,)
-    c.execute('SELECT * FROM songs WHERE id=?', prep)
-    if c.fetchone() != None:
+    if sdb.get(bytes(h, 'ascii')):
         raise Exception('song already exists in database')
     
     # add song to songs table
-    prep = (h, path)
-    c.execute('INSERT INTO songs VALUES(?, ?)', prep)
+    sdb.put(bytes(h, 'ascii'), bytes(path, 'ascii'))
 
     # close sqlite
-    conn.commit()
-    conn.close()
+    db.close()
 
     # calculate fingerprints and add to fingerprints table
     fingerprint(data, fs, query=False, ID=h)
@@ -321,12 +333,10 @@ def fingerprint(data, fs, query=True, ID=None):
     return matches
 
 def get_song_info(song_id):
-    conn = sqlite3.connect('mask.db')
-    c = conn.cursor()
-    prep = (song_id,)
-    c.execute('SELECT name FROM songs WHERE id=?', prep)
-    name = c.fetchone()[0]
-    c.close()
+    db = plyvel.DB('mask_level.db', create_if_missing=True)
+    sdb = db.prefixed_db(b's-')
+    name = sdb.get(bytes(song_id, 'utf-8'))
+    db.close()
     return name
 
 def record_mic(secs):
