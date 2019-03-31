@@ -1,13 +1,13 @@
 import numpy as np
 from scipy import signal
-from scipy.io.wavfile import read
-from IPython.display import Audio
-import matplotlib.pyplot as plt
 from numpy.fft import fft
 from bitarray import bitarray
 import sqlite3
 import hashlib
 import time
+import os
+import subprocess
+import sounddevice
 
 def downsample_4k(data, fs):
     return signal.resample_poly(data, 1, 11)
@@ -73,6 +73,7 @@ def find_peaks(data, query=True, ID=None):
     matches = {}
     conn = sqlite3.connect('mask.db')
     c = conn.cursor()
+    c.arraysize = 10
 
     peaks = [[] for i in range(data.shape[1])]
 
@@ -81,7 +82,7 @@ def find_peaks(data, query=True, ID=None):
             # test neighbors
             if data[t,b] <= data[t-1][b] or data[t,b] <= data[t+1][b]:
                 continue
-            elif data[t,b] <= data[t][b+1] or data[t,b] <= data[t][b+1]:
+            if data[t,b] <= data[t][b+1] or data[t,b] <= data[t][b+1]:
                 continue
 
             # add peak if it's the first one in band
@@ -188,14 +189,20 @@ def find_peaks(data, query=True, ID=None):
 
             fp = bitarray(band_bits + bits)
             if query: # lookup in database
-                prep = (int(fp.to01(),2),)
-                c.execute('SELECT * FROM fingerprints WHERE fp=?', prep)
-                temp = c.fetchall()
-                for match in temp:
-                    if match[1] not in matches:
-                        matches[match[1]] = [[],[]]
-                    matches[match[1]][0].append(match[2])
-                    matches[match[1]][1].append(t)
+                fp_int = int(fp.to01(),2)
+                for idx_1 in range(26):
+                    for idx_2 in range(26):
+                        temp_fp = (1 << idx_1) ^ fp_int
+                        if idx_1 != idx_2:
+                            temp_fp ^= (1 << idx_2)
+                        prep = (temp_fp,)
+                        c.execute('SELECT * FROM fingerprints WHERE fp=?', prep)
+                        temp = c.fetchall()
+                        for match in temp:
+                            if match[1] not in matches:
+                                matches[match[1]] = [[],[]]
+                            matches[match[1]][0].append(match[2])
+                            matches[match[1]][1].append(t)
             else: # add query to database
                 prep = (int(fp.to01(),2), ID, t)        
                 c.execute('INSERT INTO fingerprints VALUES(?, ?, ?)', prep)
@@ -209,24 +216,101 @@ def find_peaks(data, query=True, ID=None):
         return None
 
 
-def add_song(name):
+def add_song(path):
+    if os.path.isdir(path):
+        for root, _, filenames in os.walk(path):
+            for filename in filenames:
+                try:
+                    add_one_song(os.path.join(root, filename))
+                    print('added    {}'.format(filename))
+                except:
+                    print('skipping {}'.format(filename))
+        pass
+    elif os.path.isfile(path):
+        add_one_song(path)
+        pass
+    else:
+        raise Exception('invalid path')
+
+def add_one_song(path):
+    path = os.path.abspath(path);
+
+    # read file and convert to mono
+    data, fs = read_file(path)
+
+    # generate ID based on the data
+    h = hashlib.sha256(data.view()).hexdigest()
+
+    # set up sqlite
     conn = sqlite3.connect('mask.db')
     c = conn.cursor()
 
-    m = hashlib.sha256()
-    m.update(name.encode('UTF-8'))
-    h = m.hexdigest()
-    # h = hash(name)
+    # test if song is already in the database
     prep = (h,)
     c.execute('SELECT * FROM songs WHERE id=?', prep)
     if c.fetchone() != None:
         raise Exception('song already exists in database')
     
-    prep = (h, name)
+    # add song to songs table
+    prep = (h, path)
     c.execute('INSERT INTO songs VALUES(?, ?)', prep)
+
+    # close sqlite
     conn.commit()
     conn.close()
-    return h
+
+    # calculate fingerprints and add to fingerprints table
+    fingerprint(data, fs, query=False, ID=h)
+
+    return
+
+
+def read_file(path):
+    fs = 44100
+    command = [ 'ffmpeg',
+        '-i', path,
+        '-f', 's16le',
+        '-acodec', 'pcm_s16le',
+        '-ar', str(fs),
+        '-ac', '1',
+        '-']
+    raw_audio = subprocess.check_output(command)
+    data = np.fromstring(raw_audio, dtype="int16")
+    return data, fs
+
+def identify_song(song, fs=44100):
+    if isinstance(song, str):
+        song_name = song
+        data, fs = read_file(song_name)
+    elif isinstance(song, np.ndarray):
+        data = song
+    else:
+        raise Exception('invalid input')
+        
+    matches = fingerprint(data, fs, query=True)
+
+    candidates = []
+    scores = []
+    for m in matches:
+        dts = []
+        for i in range(len(matches[m][0])):
+            dt = matches[m][0][i] - matches[m][1][i]
+            if dt < 0:
+                continue
+            dts.append(dt)
+                
+        max_dt = np.max(dts) + 1
+        hist = np.zeros(max_dt, dtype='int')
+        for dt in dts:
+            hist[dt] += 1
+            
+        candidates.append(m)
+        scores.append(np.max(hist))
+            
+    max_idx = np.argmax(scores)
+
+    return candidates[np.argmax(scores)], np.max(scores)
+
 
 def fingerprint(data, fs, query=True, ID=None):
     data_2 = downsample_4k(data, fs)
@@ -235,3 +319,45 @@ def fingerprint(data, fs, query=True, ID=None):
     mels = compute_mel(stft_out)
     matches = find_peaks(mels, query=query, ID=ID)
     return matches
+
+def get_song_info(song_id):
+    conn = sqlite3.connect('mask.db')
+    c = conn.cursor()
+    prep = (song_id,)
+    c.execute('SELECT name FROM songs WHERE id=?', prep)
+    name = c.fetchone()[0]
+    c.close()
+    return name
+
+def record_mic(secs):
+    fs=44100
+    
+    print('Recording mic for {} seconds...'.format(secs))
+
+    data = sounddevice.rec(int(secs * fs), samplerate=fs, channels=1)
+    sounddevice.wait()
+
+    data = np.hstack(data)
+    print('ok')
+    
+    return data, fs
+
+def test(mic=True, secs=5, path=None):
+    if mic:
+        data, fs = record_mic(secs)
+        start = time.time()
+        song_id, score = identify_song(data)
+        end = time.time()
+        elapsed_time = end - start
+    elif path:
+        start = time.time()
+        song_id, score = identify_song(path)
+        end = time.time()
+        elapsed_time = end - start
+    else:
+        raise Exception('error: must specify path')
+
+    print('id:           {}'.format(song_id))
+    print('path:         {}'.format(get_song_info(song_id)))
+    print('score:        {}'.format(score))
+    print('elapsed time: {:0.3f}s'.format(elapsed_time))
