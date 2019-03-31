@@ -74,10 +74,12 @@ def find_peaks(data, query=True, ID=None):
 
     matches = {}
     fpdb = db.DB()
-    fpdb.open('mask_fpdb.bdb', None, db.DB_HASH, db.DB_CREATE)
+    fpdb.set_cachesize(0, 536870912, 1)
+    fpdb.open('mask_fp.bdb', None, db.DB_HASH, db.DB_CREATE)
 
     peaks = [[] for i in range(data.shape[1])]
 
+    num_fp = 0
     for t in range(9, data.shape[0]-9):
         for b in range(1, data.shape[1]-1):
             # test neighbors
@@ -191,19 +193,19 @@ def find_peaks(data, query=True, ID=None):
             fp = bitarray(band_bits + bits)
             fp_int = int(fp.to01(),2)
             if query: # lookup in database
-                for idx_1 in range(26):
-                    for idx_2 in range(26):
+                for idx_1 in range(22):
+                    for idx_2 in range(22):
                         temp_fp = (1 << idx_1) ^ fp_int
                         if idx_1 != idx_2:
                             temp_fp ^= (1 << idx_2)
 
-                        temp_k = bytes(ujson.dumps(temp_fp), 'ascii')
+                        temp_k = bytes(ujson.dumps(temp_fp), 'utf-8')
                         temp = fpdb.get(temp_k)
 
                         if temp == None:
                             continue
 
-                        temp = ujson.loads(temp.decode('ascii'))
+                        temp = ujson.loads(temp.decode('utf-8'))
 
                         for match in temp:
                             if match[0] not in matches:
@@ -212,19 +214,33 @@ def find_peaks(data, query=True, ID=None):
                             matches[match[0]][1].append(t)
             else: # add query to database
                 prep = (ID, t)
-                temp_k = bytes(ujson.dumps(fp_int), 'ascii')
+                temp_k = bytes(ujson.dumps(fp_int), 'utf-8')
                 temp = fpdb.get(temp_k)
                 if temp == None:
                     temp = [prep]
                 else:
-                    temp = ujson.loads(temp.decode('ascii'))
+                    temp = ujson.loads(temp.decode('utf-8'))
                     temp.append(prep)
 
-                temp_v = bytes(ujson.dumps(temp), 'ascii')
+                temp_v = bytes(ujson.dumps(temp), 'utf-8')
 
                 fpdb.put(temp_k, temp_v)
+                num_fp += 1
 
     fpdb.close()
+
+    statsdb = db.DB()
+    statsdb.open('mask_stats.bdb', None, db.DB_HASH, db.DB_CREATE)
+    temp_k = bytes('num_fp', 'utf-8')
+    temp = statsdb.get(temp_k)
+    if temp == None:
+        temp = num_fp
+    else:
+        temp = int(temp.decode('utf-8'))
+        temp += num_fp
+    temp_v = bytes(str(temp), 'utf-8')
+    statsdb.put(temp_k, temp_v)
+    statsdb.close()
 
     if query:
         return matches
@@ -238,9 +254,23 @@ def add_song(path):
             for filename in filenames:
                 try:
                     add_one_song(os.path.join(root, filename))
-                    print('added    {}'.format(filename))
                 except:
                     print('skipping {}'.format(filename))
+                    continue
+                print('added    {}'.format(filename))
+
+                statsdb = db.DB()
+                statsdb.open('mask_stats.bdb', None, db.DB_HASH, db.DB_CREATE)
+                temp_k = bytes('num_songs', 'utf-8')
+                temp = statsdb.get(temp_k)
+                if temp == None:
+                    temp = 1
+                else:
+                    temp = int(temp.decode('utf-8'))
+                    temp += 1
+                temp_v = bytes(str(temp), 'utf-8')
+                statsdb.put(temp_k, temp_v)
+                statsdb.close()
         pass
     elif os.path.isfile(path):
         add_one_song(path)
@@ -259,14 +289,14 @@ def add_one_song(path):
 
     # set up sqlite
     sdb = db.DB()
-    sdb.open('mask_sdb.bdb', None, db.DB_HASH, db.DB_CREATE)
+    sdb.open('mask_s.bdb', None, db.DB_HASH, db.DB_CREATE)
 
     # test if song is already in the database
-    if sdb.get(bytes(h, 'ascii')):
+    if sdb.get(bytes(h, 'utf-8')):
         raise Exception('song already exists in database')
     
     # add song to songs table
-    sdb.put(bytes(h, 'ascii'), bytes(path, 'ascii'))
+    sdb.put(bytes(h, 'utf-8'), bytes(path, 'utf-8'))
 
     # close sqlite
     sdb.close()
@@ -303,6 +333,7 @@ def identify_song(song, fs=44100):
 
     candidates = []
     scores = []
+    elapsed_times = []
     for m in matches:
         dts = []
         for i in range(len(matches[m][0])):
@@ -318,10 +349,11 @@ def identify_song(song, fs=44100):
             
         candidates.append(m)
         scores.append(np.max(hist))
+        elapsed_times.append(np.argmax(hist))
             
     max_idx = np.argmax(scores)
 
-    return candidates[np.argmax(scores)], np.max(scores)
+    return candidates[max_idx], np.max(scores), elapsed_times[max_idx]
 
 
 def fingerprint(data, fs, query=True, ID=None):
@@ -334,7 +366,7 @@ def fingerprint(data, fs, query=True, ID=None):
 
 def get_song_info(song_id):
     sdb = db.DB()
-    sdb.open('mask_sdb.bdb', None, db.DB_HASH, db.DB_CREATE)
+    sdb.open('mask_s.bdb', None, db.DB_HASH, db.DB_CREATE)
     name = sdb.get(bytes(song_id, 'utf-8'))
     sdb.close()
     return name
@@ -356,18 +388,24 @@ def test(mic=True, secs=5, path=None):
     if mic:
         data, fs = record_mic(secs)
         start = time.time()
-        song_id, score = identify_song(data)
-        end = time.time()
-        elapsed_time = end - start
+        song_id, score, elapsed_bin = identify_song(data)
     elif path:
         start = time.time()
-        song_id, score = identify_song(path)
-        end = time.time()
-        elapsed_time = end - start
+        song_id, score, elapsed_bin = identify_song(path)
     else:
         raise Exception('error: must specify path')
 
-    print('id:           {}'.format(song_id))
-    print('path:         {}'.format(get_song_info(song_id)))
-    print('score:        {}'.format(score))
-    print('elapsed time: {:0.3f}s'.format(elapsed_time))
+    filename = os.path.basename(get_song_info(song_id).decode('utf-8'))
+
+    end = time.time()
+    execution_time = end - start
+
+    elapsed_time = elapsed_bin * 0.01 + execution_time + secs
+    elapsed_time_m = int(elapsed_time / 60)
+    elapsed_time_s = int(elapsed_time) % 60
+
+    print('id:             {}'.format(song_id))
+    print('name:           {}'.format(filename))
+    print('score:          {}'.format(score))
+    print('elapsed time:   {}:{:02d}'.format(elapsed_time_m, elapsed_time_s))
+    print('execution time: {:0.3f}s'.format(execution_time))
