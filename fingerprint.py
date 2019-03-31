@@ -8,7 +8,7 @@ import time
 import os
 import subprocess
 import sounddevice
-import plyvel
+from bsddb3 import db
 import ujson
 
 def downsample_4k(data, fs):
@@ -73,8 +73,8 @@ def find_peaks(data, query=True, ID=None):
         raise Exception("Error: ID must be specified when adding song")
 
     matches = {}
-    db = plyvel.DB('mask_level.db', create_if_missing=True)
-    fpdb = db.prefixed_db(b'fp-')
+    fpdb = db.DB()
+    fpdb.open('mask_fpdb.bdb', None, db.DB_HASH, db.DB_CREATE)
 
     peaks = [[] for i in range(data.shape[1])]
 
@@ -224,7 +224,7 @@ def find_peaks(data, query=True, ID=None):
 
                 fpdb.put(temp_k, temp_v)
 
-    db.close()
+    fpdb.close()
 
     if query:
         return matches
@@ -258,8 +258,8 @@ def add_one_song(path):
     h = hashlib.sha256(data.view()).hexdigest()
 
     # set up sqlite
-    db = plyvel.DB('mask_level.db', create_if_missing=True)
-    sdb = db.prefixed_db(b's-')
+    sdb = db.DB()
+    sdb.open('mask_sdb.bdb', None, db.DB_HASH, db.DB_CREATE)
 
     # test if song is already in the database
     if sdb.get(bytes(h, 'ascii')):
@@ -269,7 +269,7 @@ def add_one_song(path):
     sdb.put(bytes(h, 'ascii'), bytes(path, 'ascii'))
 
     # close sqlite
-    db.close()
+    sdb.close()
 
     # calculate fingerprints and add to fingerprints table
     fingerprint(data, fs, query=False, ID=h)
@@ -333,10 +333,10 @@ def fingerprint(data, fs, query=True, ID=None):
     return matches
 
 def get_song_info(song_id):
-    db = plyvel.DB('mask_level.db', create_if_missing=True)
-    sdb = db.prefixed_db(b's-')
+    sdb = db.DB()
+    sdb.open('mask_sdb.bdb', None, db.DB_HASH, db.DB_CREATE)
     name = sdb.get(bytes(song_id, 'utf-8'))
-    db.close()
+    sdb.close()
     return name
 
 def record_mic(secs):
