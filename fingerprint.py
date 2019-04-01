@@ -367,6 +367,8 @@ def audio_callback(indata, frames, callback_time, status):
     global callback_idx
     if status.output_underflow or status.input_overflow:
         print('falling behind!')
+    if status.input_underflow:
+        print('no input detected!')
     if callback_idx * frames // FS > 15:
         id_error = True
         return
