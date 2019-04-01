@@ -329,31 +329,42 @@ def identify_song(song, fs=44100):
     else:
         raise Exception('invalid input')
         
+    # get all fingerprint matches
     matches = fingerprint(data, fs, query=True)
+    
+    cur_max_hist = 0        # max score
+    cur_maxkey_hist = None  # song_id of max score
+    cur_argmax_hist = None  # dt of max score
 
-    candidates = []
-    scores = []
-    elapsed_times = []
     for m in matches:
-        dts = []
+        hist = {}   # histogram of dts
         for i in range(len(matches[m][0])):
             dt = matches[m][0][i] - matches[m][1][i]
-            if dt < 0:
-                continue
-            dts.append(dt)
-                
-        max_dt = np.max(dts) + 1
-        hist = np.zeros(max_dt, dtype='int')
-        for dt in dts:
-            hist[dt] += 1
-            
-        candidates.append(m)
-        scores.append(np.max(hist))
-        elapsed_times.append(np.argmax(hist))
-            
-    max_idx = np.argmax(scores)
 
-    return candidates[max_idx], np.max(scores), elapsed_times[max_idx]
+            # dt with maximum score
+            if 'max' not in hist:
+                hist['max'] = dt
+
+            if dt not in hist:
+                hist[dt] = 0
+
+            hist[dt] += 1
+
+            # update max
+            if hist[dt] > hist[hist['max']]:
+                hist['max'] = dt
+                
+        # get max score and dt for this song
+        temp_argmax_hist = hist['max']
+        temp_max_hist = hist[temp_argmax_hist]
+
+        # calculate max score of all songs
+        if cur_maxkey_hist == None or temp_max_hist > cur_max_hist:
+            cur_max_hist = temp_max_hist
+            cur_argmax_hist = temp_argmax_hist
+            cur_maxkey_hist = m
+
+    return cur_maxkey_hist, cur_max_hist, cur_argmax_hist
 
 
 def fingerprint(data, fs, query=True, ID=None):
