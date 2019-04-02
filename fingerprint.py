@@ -2,7 +2,6 @@ import numpy as np
 from scipy import signal
 from numpy.fft import fft
 from bitarray import bitarray
-import sqlite3
 import hashlib
 import time
 import os
