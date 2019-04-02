@@ -1,8 +1,8 @@
 # MASK Audio Fingerprinting and Song Identification
 
-An implementation of the [MASK audio fingerprint algorithm](https://www.researchgate.net/profile/Xavier_Anguera/publication/261131744_MASK_Robust_Local_Features_for_Audio_Fingerprinting/links/55c2950a08aebc967defdfc8.pdf).
+An implementation of the [MASK audio fingerprint algorithm](https://www.researchgate.net/publication/261131744_MASK_Robust_Local_Features_for_Audio_Fingerprinting).
 
-
+![gif of song identification](/images/mask.gif)
 
 ## Dependencies
 
