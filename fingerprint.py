@@ -6,6 +6,7 @@ import hashlib
 import time
 import os
 import subprocess
+from subprocess import DEVNULL
 import sounddevice
 from bsddb3 import db
 import ujson
@@ -280,8 +281,11 @@ def add_song(path):
             for filename in filenames:
                 try:
                     add_one_song(os.path.join(root, filename))
-                except:
+                except KeyError:
                     print('skipping {}'.format(filename))
+                    continue
+                except:
+                    print('bad file {}'.format(filename))
                     continue
                 print('added    {}'.format(filename))
 
@@ -310,18 +314,18 @@ def add_one_song(path):
     path = os.path.abspath(path);
 
     # read file and convert to mono
-    data, fs = read_file(path)
+    data = read_file(path)
 
     # generate ID based on the data
     h = hashlib.sha256(data.view()).hexdigest()
 
-    # set up sqlite
+    # set up database
     sdb = db.DB()
     sdb.open('mask_s.bdb', None, db.DB_HASH, db.DB_CREATE)
 
     # test if song is already in the database
     if sdb.get(bytes(h, 'utf-8')):
-        raise Exception('song already exists in database')
+        raise KeyError
     
     # add song to songs table
     sdb.put(bytes(h, 'utf-8'), bytes(path, 'utf-8'))
@@ -344,9 +348,9 @@ def read_file(path):
         '-ar', str(FS),
         '-ac', '1',
         '-']
-    raw_audio = subprocess.check_output(command, stderr=devnull)
+    raw_audio = subprocess.check_output(command, stderr=DEVNULL)
     data = np.fromstring(raw_audio, dtype="int16")
-    return data, fs
+    return data
 
 # spin until a song is identified
 def identify_song():

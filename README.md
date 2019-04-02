@@ -27,7 +27,7 @@ An implementation of the [MASK audio fingerprint algorithm](https://www.research
 ### Add songs to the database
 
 ```
-python insert.py path/to/files/or/directory
+python ingest.py path/to/files/or/directory
 ```
 
 ### Identify a song
