@@ -14,21 +14,29 @@ import functools
 
 print = functools.partial(print, flush=True)
 
-REC_FRAME_SIZE = 2000
-FS = 4000
+# constant parameters
+REC_FRAME_SIZE = 2000   # size of each stream buffer
+FS = 4000               # sampling rate of audio (Hz)
+THRESHOLD = 15          # min score required to be a match
+TIMEOUT = 15            # max duration to listen for (sec)
 
+# global variables
 id_error = False
+id_found = False
+id_hash = ""
+id_etime = 0
+id_score = 0
 start = 0
 callback_idx = 0
 
 
-def downsample_4k(data, fs):
-    return signal.resample_poly(data, 1, 11)
-
+# bandpass as recommended by MASK paper (actually just a hi-pass)
+# 0.3 kHz cutoff
 def bandpass(data):
     b = signal.firls(25, [0, 250, 300, REC_FRAME_SIZE], [0, 0, 1, 1], fs=FS)
     return signal.lfilter(b, 1, data)
 
+# compute stft (spectrogram)
 def stft(data, win_len=100, win_overlap=10):
     frame_start = 0
 
@@ -54,6 +62,7 @@ def stft(data, win_len=100, win_overlap=10):
 
     return stft_out
 
+# compute mel filterbank
 def compute_mel(data, nbins=18):
     low_mfreq = 0
     hi_mfreq = 2595 * np.log10(1 + REC_FRAME_SIZE/700)
@@ -79,27 +88,25 @@ def compute_mel(data, nbins=18):
     filter_banks = np.where(filter_banks <= 0, np.finfo(float).eps, filter_banks)
     return 20 * np.log10(filter_banks)
 
+# find peaks, compute fingerprints, insert or query database
 def find_peaks(data, query=True, ID=None):
     if not query and ID == None:
         raise Exception("Error: ID must be specified when adding song")
 
     matches = {}
+
     fpdb = db.DB()
     fpdb.set_cachesize(0, 536870912, 1)
     fpdb.open('mask_fp.bdb', None, db.DB_HASH, db.DB_CREATE)
 
-    num_peaks = 0
     num_fp = 0
+
     for t in range(9, data.shape[0]-9):
-        for b in range(1, data.shape[1]-1):
+        for b in range(1, data.shape[1]-1): # bands 1-16 (inclusive)
             # test neighbors
             if data[t,b] <= data[t-1][b] or data[t,b] <= data[t+1][b]:
                 continue
             if data[t,b] <= data[t][b+1] or data[t,b] <= data[t][b+1]:
-                continue
-
-            # check threshold
-            if query and data[t,b] < -100:
                 continue
 
             # compute region values
@@ -199,14 +206,16 @@ def find_peaks(data, query=True, ID=None):
             fp = bitarray(band_bits + bits)
             fp_int = int(fp.to01(),2)
             if query: # lookup in database
+                # toggle bits
                 for idx_1 in range(-1, 22):
-                    for idx_2 in range(10,22):
+                    for idx_2 in range(13,22):
                         temp_fp = fp_int
                         if idx_1 != -1:
                             temp_fp ^= (1 << idx_1)
-                        if idx_2 != 10 and idx_2 != idx_1:
+                        if idx_2 != 13 and idx_2 != idx_1:
                             temp_fp ^= (1 << idx_2)
 
+                        # lookup in database
                         temp_k = bytes(ujson.dumps(temp_fp), 'utf-8')
                         temp = fpdb.get(temp_k)
 
@@ -215,13 +224,13 @@ def find_peaks(data, query=True, ID=None):
 
                         temp = ujson.loads(temp.decode('utf-8'))
 
+                        # add values to list
                         for match in temp:
-                            num_peaks += 1
                             if match[0] not in matches:
                                 matches[match[0]] = [[],[]]
                             matches[match[0]][0].append(match[1])
                             matches[match[0]][1].append(t)
-            else: # add query to database
+            else: # add to database
                 prep = (ID, t)
                 temp_k = bytes(ujson.dumps(fp_int), 'utf-8')
                 temp = fpdb.get(temp_k)
@@ -242,6 +251,7 @@ def find_peaks(data, query=True, ID=None):
     if query:
         return matches
     else:
+        # update stats database
         statsdb = db.DB()
         statsdb.open('mask_stats.bdb', None, db.DB_HASH, db.DB_CREATE)
         temp_k = bytes('num_fp', 'utf-8')
@@ -256,13 +266,15 @@ def find_peaks(data, query=True, ID=None):
         statsdb.close()
         return None
 
+# generate fingerprints for data
 def fingerprint(data, query=True, ID=None):
-    data_3 = bandpass(data)
-    stft_out = stft(data_3)
+    bandpass_out = bandpass(data)
+    stft_out = stft(bandpass_out)
     mels = compute_mel(stft_out)
     matches = find_peaks(mels, query=query, ID=ID)
     return matches
 
+# add a song or directory to the reference database
 def add_song(path):
     if os.path.isdir(path):
         for root, _, filenames in os.walk(path):
@@ -274,6 +286,7 @@ def add_song(path):
                     continue
                 print('added    {}'.format(filename))
 
+                # updates stats database
                 statsdb = db.DB()
                 statsdb.open('mask_stats.bdb', None, db.DB_HASH, db.DB_CREATE)
                 temp_k = bytes('num_songs', 'utf-8')
@@ -293,6 +306,7 @@ def add_song(path):
     else:
         raise Exception('invalid path')
 
+# add a single song to the database
 def add_one_song(path):
     path = os.path.abspath(path);
 
@@ -322,63 +336,54 @@ def add_one_song(path):
     return
 
 
+# read an input file into a numpy array
 def read_file(path):
-    fs = FS
     command = [ 'ffmpeg',
         '-i', path,
         '-f', 's16le',
         '-acodec', 'pcm_s16le',
-        '-ar', str(fs),
+        '-ar', str(FS),
         '-ac', '1',
         '-']
-    raw_audio = subprocess.check_output(command)
+    raw_audio = subprocess.check_output(command, stderr=devnull)
     data = np.fromstring(raw_audio, dtype="int16")
     return data, fs
 
+# spin until a song is identified
 def identify_song():
-    THRESHOLD = 15
-
     while True:
         if id_error:
             raise LookupError
-        time.sleep(.5)
-        max_m = None
-        argmax_m = 0
-        max_score = 0
-        for m in list(hists):
-            hist = hists[m]
-            if hist[hist['max']] >= THRESHOLD:
-                if max_m != None:
-                    max_m = m
-                    max_score = hist[hist['max']]
-                    argmax_m = hist['max']
-                elif hist[hist['max']] > max_score:
-                    max_m = m
-                    argmax_m = hist['max']
-                    max_score = hist[hist['max']]
-        if max_m != None:
-            return max_m, max_score, argmax_m
+        if id_found:
+            return id_hash, id_score, id_etime
+        time.sleep(.1)
 
 
+# process audio frames in real time
 def audio_callback(indata, frames, callback_time, status):
-    print('.', end='')
     global hists
     global id_error
+    global id_hash
+    global id_score
+    global id_etime
+    global id_found
     global callback_idx
-    if status.output_underflow or status.input_overflow:
-        print('falling behind!')
+
     if status.input_underflow:
         print('no input detected!')
-    if callback_idx * frames // FS > 15:
+
+    # timeout
+    if callback_idx * frames // FS > TIMEOUT:
         id_error = True
         return
 
     elapsed = callback_idx * frames * 100 // FS
     callback_idx += 1
 
-    data = indata[:,0]
     # get all fingerprint matches
-    matches = fingerprint(data, query=True)
+    matches = fingerprint(indata[:,0], query=True)
+
+    temp_found = False
 
     for m in matches:
         if m not in hists:
@@ -390,22 +395,27 @@ def audio_callback(indata, frames, callback_time, status):
             dt = matches[m][0][i] - matches[m][1][i]
             dt -= elapsed
 
-            # dt with maximum score
-            if 'max' not in hist:
-                hist['max'] = dt
-
             if dt not in hist:
                 hist[dt] = 0
 
             hist[dt] += 1
 
-            # update max
-            if hist[dt] > hist[hist['max']]:
-                hist['max'] = dt
+            # check if score is above defined threshold
+            if hist[dt] > THRESHOLD and hist[dt] > id_score:
+                temp_found = True
+                id_score = hist[dt]
+                id_hash = m
+                id_etime = dt
 
         hists[m] = hist
+
+    # set global flag if a match is found
+    id_found = temp_found
+
+    print('.', end='')
                 
 
+# returns the name of a song given its id
 def get_song_info(song_id):
     sdb = db.DB()
     sdb.open('mask_s.bdb', None, db.DB_HASH, db.DB_CREATE)
@@ -413,23 +423,34 @@ def get_song_info(song_id):
     sdb.close()
     return name
 
+# return a stream from the microphone
 def record_mic():
     print('Listening', end='')
     stream = sounddevice.InputStream(samplerate=FS, channels=1,
             blocksize=REC_FRAME_SIZE, callback=audio_callback)
     return stream
 
+# attempt to identify audio
 def test():
     global start
     global hists
     global id_error
+    global id_hash
+    global id_score
+    global id_etime
+    global id_found
     global callback_idx
 
     start = 0
     hists = {}
     id_error = False
+    id_hash = ""
+    id_score = 0
+    id_etime = 0
+    id_found = False
     callback_idx = 0
 
+    # open stream from microphne
     stream = record_mic()
     with stream:
         start = time.time()
@@ -441,8 +462,10 @@ def test():
             return
         stream.stop()
 
+    # find song info
     filename = os.path.basename(get_song_info(song_id).decode('utf-8'))
 
+    # calculate times
     end = time.time()
     execution_time = end - start
 
@@ -452,6 +475,7 @@ def test():
 
     recorded_time = callback_idx * REC_FRAME_SIZE / FS
 
+    # output results
     print()
     print('id:             {}'.format(song_id))
     print('name:           {}'.format(filename))
