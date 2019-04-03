@@ -20,9 +20,9 @@ REC_FRAME_SIZE = 2000       # size of each stream buffer
 THRESHOLD = 15              # min score required to be considered a match
 THRESHOLD_RATE = 0.5        # min score per second required
 THRESHOLD_RATE_MIN_TIME = 3 # min time for THRESHOLD_RATE to become active (sec)
-THRESHOLD_RATE_MIN = 10      # min score required at THRESHOLD_RATE_MIN_TIME
+THRESHOLD_RATE_MIN = 12     # min score required at THRESHOLD_RATE_MIN_TIME
 TIMEOUT = 15                # max duration to listen for (sec)
-TOGGLE_BITS = 16            # number of bits to fuzz when searching fingerprint matches
+TOGGLE_BITS = 14            # number of bits to fuzz when searching fingerprint matches
 
 # global variables
 id_error = False
@@ -223,9 +223,9 @@ def find_peaks(data, query=True, ID=None):
 
                         temp_fp = fp_int
                         if idx_1 != -1:
-                            temp_fp ^= 1 << (reliability[idx_1])
+                            temp_fp ^= 1 << (reliability[21-idx_1])
                         if idx_2 != -1:
-                            temp_fp ^= 1 << (reliability[idx_2])
+                            temp_fp ^= 1 << (reliability[21-idx_2])
 
                         # lookup in database
                         temp_k = bytes(ujson.dumps(temp_fp), 'utf-8')
