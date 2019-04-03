@@ -195,10 +195,10 @@ def find_peaks(data, query=True, ID=None):
             energy_diffs[17] = r_4g - r_4h
 
             # extended quardants 2
-            energy_diffs[18] = r_4a + r_4b - r_4c + r_4d
-            energy_diffs[19] = r_4e + r_4f - r_4g + r_4h
-            energy_diffs[20] = r_4c + r_4d - r_4e + r_4f
-            energy_diffs[21] = r_4a + r_4b - r_4g + r_4h
+            energy_diffs[18] = (r_4a + r_4b) - (r_4c + r_4d)
+            energy_diffs[19] = (r_4e + r_4f) - (r_4g + r_4h)
+            energy_diffs[20] = (r_4c + r_4d) - (r_4e + r_4f)
+            energy_diffs[21] = (r_4a + r_4b) - (r_4g + r_4h)
 
             # calculate bits
             bits = [x > 0 for x in energy_diffs]
