@@ -329,7 +329,7 @@ def add_one_song(path):
     data = read_file(path)
 
     # generate ID based on the data
-    h = hashlib.sha256(data.view()).hexdigest()
+    h = hashlib.sha256(data.view()).hexdigest()[:32]
 
     # set up database
     sdb = db.DB()
