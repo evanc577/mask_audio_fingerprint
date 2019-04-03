@@ -15,10 +15,14 @@ import functools
 print = functools.partial(print, flush=True)
 
 # constant parameters
-REC_FRAME_SIZE = 2000   # size of each stream buffer
-FS = 4000               # sampling rate of audio (Hz)
-THRESHOLD = 15          # min score required to be a match
-TIMEOUT = 15            # max duration to listen for (sec)
+FS = 4000                   # sampling rate of audio (Hz)
+REC_FRAME_SIZE = 2000       # size of each stream buffer
+THRESHOLD = 15              # min score required to be considered a match
+THRESHOLD_RATE = 0.5        # min score per second required
+THRESHOLD_RATE_MIN_TIME = 3 # min time for THRESHOLD_RATE to become active (sec)
+THRESHOLD_RATE_MIN = 10      # min score required at THRESHOLD_RATE_MIN_TIME
+TIMEOUT = 15                # max duration to listen for (sec)
+TOGGLE_BITS = 16            # number of bits to fuzz when searching fingerprint matches
 
 # global variables
 id_error = False
@@ -65,7 +69,7 @@ def stft(data, win_len=100, win_overlap=10):
 # compute mel filterbank
 def compute_mel(data, nbins=18):
     low_mfreq = 0
-    hi_mfreq = 2595 * np.log10(1 + REC_FRAME_SIZE/700)
+    hi_mfreq = 2595 * np.log10(1 + FS/2/700)
     m_points = np.linspace(low_mfreq, hi_mfreq, nbins + 2)
     hz_points = (700 * (10**(m_points / 2595) - 1))
 
@@ -161,40 +165,43 @@ def find_peaks(data, query=True, ID=None):
                 r_4h = (data[t+9][b-2] + data[t+8][b-2] + data[t+7][b-2] + data[t+6][b-2] + data[t+9][b-1] + data[t+8][b-1] + data[t+7][b-1] + data[t+6][b-1]) / 8
 
 
-            bits = [False for _ in range(22)]
-            # compute bits
+            # compute mask
+            energy_diffs = [False for _ in range(22)]
 
             # horizontal max
-            bits[0] = r_1a > r_1b
-            bits[1] = r_1b > r_1c
-            bits[2] = r_1c > r_1d
-            bits[3] = r_1d > r_1e
-            bits[4] = r_1e > r_1f
-            bits[5] = r_1f > r_1g
-            bits[6] = r_1g > r_1h
+            energy_diffs[0] = r_1a - r_1b
+            energy_diffs[1] = r_1b - r_1c
+            energy_diffs[2] = r_1c - r_1d
+            energy_diffs[3] = r_1d - r_1e
+            energy_diffs[4] = r_1e - r_1f
+            energy_diffs[5] = r_1f - r_1g
+            energy_diffs[6] = r_1g - r_1h
 
             # vertical max
-            bits[7] = r_2a > r_2b
-            bits[8] = r_2b > r_2c
-            bits[9] = r_2c > r_2d
+            energy_diffs[7] = r_2a - r_2b
+            energy_diffs[8] = r_2b - r_2c
+            energy_diffs[9] = r_2c - r_2d
 
             # intermediate quadrants
-            bits[10] = r_3a > r_3b
-            bits[11] = r_3d > r_3c
-            bits[12] = r_3a > r_3d
-            bits[13] = r_3b > r_3c
+            energy_diffs[10] = r_3a - r_3b
+            energy_diffs[11] = r_3d - r_3c
+            energy_diffs[12] = r_3a - r_3d
+            energy_diffs[13] = r_3b - r_3c
 
             # extended quadrants 1
-            bits[14] = r_4a > r_4b
-            bits[15] = r_4c > r_4d
-            bits[16] = r_4e > r_4f
-            bits[17] = r_4g > r_4h
+            energy_diffs[14] = r_4a - r_4b
+            energy_diffs[15] = r_4c - r_4d
+            energy_diffs[16] = r_4e - r_4f
+            energy_diffs[17] = r_4g - r_4h
 
             # extended quardants 2
-            bits[18] = r_4a + r_4b > r_4c + r_4d
-            bits[19] = r_4e + r_4f > r_4g + r_4h
-            bits[20] = r_4c + r_4d > r_4e + r_4f
-            bits[21] = r_4a + r_4b > r_4g + r_4h
+            energy_diffs[18] = r_4a + r_4b - r_4c + r_4d
+            energy_diffs[19] = r_4e + r_4f - r_4g + r_4h
+            energy_diffs[20] = r_4c + r_4d - r_4e + r_4f
+            energy_diffs[21] = r_4a + r_4b - r_4g + r_4h
+
+            # calculate bits
+            bits = [x > 0 for x in energy_diffs]
 
             # calculate binary representation of band
             band_bits = [True for _ in range(4)]
@@ -206,14 +213,19 @@ def find_peaks(data, query=True, ID=None):
             fp = bitarray(band_bits + bits)
             fp_int = int(fp.to01(),2)
             if query: # lookup in database
-                # toggle bits
-                for idx_1 in range(-1, 22):
-                    for idx_2 in range(13,22):
+                # toggle bits in increasing order of reliability
+                reliability = sorted(range(len(energy_diffs)),
+                        key=lambda k: abs(energy_diffs[k]))
+                for idx_1 in range(-1, TOGGLE_BITS):
+                    for idx_2 in range(-1, TOGGLE_BITS):
+                        if idx_1 == idx_2:
+                            continue
+
                         temp_fp = fp_int
                         if idx_1 != -1:
-                            temp_fp ^= (1 << idx_1)
-                        if idx_2 != 13 and idx_2 != idx_1:
-                            temp_fp ^= (1 << idx_2)
+                            temp_fp ^= 1 << (reliability[idx_1])
+                        if idx_2 != -1:
+                            temp_fp ^= 1 << (reliability[idx_2])
 
                         # lookup in database
                         temp_k = bytes(ujson.dumps(temp_fp), 'utf-8')
@@ -372,15 +384,14 @@ def audio_callback(indata, frames, callback_time, status):
     global id_found
     global callback_idx
 
+    if id_found:
+        return
+
     if status.input_underflow:
         print('no input detected!')
 
-    # timeout
-    if callback_idx * frames // FS > TIMEOUT:
-        id_error = True
-        return
-
     elapsed = callback_idx * frames * 100 // FS
+    elapsed_sec = callback_idx * frames / FS
     callback_idx += 1
 
     # get all fingerprint matches
@@ -389,12 +400,14 @@ def audio_callback(indata, frames, callback_time, status):
     temp_found = False
 
     for m in matches:
+        # fetch previous histograms
         if m not in hists:
             hist = {}   # histogram of dts
         else:
             hist = hists[m]
 
         for i in range(len(matches[m][0])):
+            # calculate dt
             dt = matches[m][0][i] - matches[m][1][i]
             dt -= elapsed
 
@@ -404,19 +417,31 @@ def audio_callback(indata, frames, callback_time, status):
             hist[dt] += 1
 
             # check if score is above defined threshold
-            if hist[dt] > THRESHOLD and hist[dt] > id_score:
+            if hist[dt] >= THRESHOLD:
                 temp_found = True
+            elif elapsed_sec >= THRESHOLD_RATE_MIN_TIME \
+                    and hist[dt] >= (elapsed_sec - THRESHOLD_RATE_MIN_TIME) * \
+                        THRESHOLD_RATE + THRESHOLD_RATE_MIN:
+                temp_found = True
+            if temp_found and hist[dt] > id_score:
                 id_score = hist[dt]
                 id_hash = m
                 id_etime = dt
 
+        # save histograms
         hists[m] = hist
 
+    # timeout
+    if elapsed_sec >= TIMEOUT:
+        id_error = True
+        return
+
     # set global flag if a match is found
-    id_found = temp_found
+    if temp_found:
+        id_found = True
 
     print('.', end='')
-                
+
 
 # returns the name of a song given its id
 def get_song_info(song_id):
