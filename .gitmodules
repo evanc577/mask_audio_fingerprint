@@ -1,0 +1,6 @@
+[submodule "c++/rtaudio"]
+	path = cpp/rtaudio
+	url = https://github.com/thestk/rtaudio.git
+[submodule "c++/kfr"]
+	path = cpp/kfr
+	url = https://github.com/kfrlib/kfr.git
