@@ -1,58 +1,39 @@
-#ifndef _PROCESS_H
-#define _PROCESS_H
+#ifndef _FINGERPRINT_H
+#define _FINGERPRINT_H
 
-#include <thread>
-#include <atomic>
-#include <condition_variable>
-#include <mutex>
-#include <chrono>
-#include <iostream>
+#include <unordered_map>
 #include <vector>
-#include <algorithm>
-#include <cstdint>
 
 #include "kfr/base.hpp"
-#include "kfr/dsp.hpp"
 #include "kfr/dft.hpp"
+#include "kfr/dsp.hpp"
 #include "kfr/io.hpp"
 
-
 class fingerprint {
-  public:
-    fingerprint(int fs);
-    fingerprint(const fingerprint& other);
-    ~fingerprint();
-    void process(const kfr::univector<kfr::f64>& data);
-  private:
-    static const int ARR_SIZE = 2000;
-    static const int WIN_STEP_MS = 10;
-    static const int WIN_SIZE_MS = 100;
+public:
+  fingerprint();
 
+  fingerprint(const fingerprint &other);
 
-    void process_full_buffer();
-    void calc_fingerprint();
-    std::vector<kfr::univector<kfr::f64>> calc_stft();
-    std::vector<kfr::univector<kfr::f64>> calc_mels();
+  ~fingerprint();
 
-    kfr::univector<kfr::f64> _arr1;
-    kfr::univector<kfr::f64> _arr2;
+  std::vector<std::pair<uint32_t, int32_t>>
+  get_fingerprints(kfr::univector<kfr::f64> buffer);
 
-    kfr::univector<kfr::f64> _process_buf;
+  static constexpr int FS = 4000;
 
-    int _cur_idx;
-    bool doing_arr1;
+private:
+  static constexpr int WIN_STEP_MS = 10;
+  static constexpr int WIN_SIZE_MS = 100;
 
-    std::atomic<bool> _arr1_full;
-    std::atomic<bool> _arr2_full;
+  std::vector<kfr::univector<kfr::f64>>
+  calc_stft(kfr::univector<kfr::f64> buffer);
 
-    std::atomic<bool> _first;
-    std::atomic<bool> _done;
+  std::vector<kfr::univector<kfr::f64>>
+  calc_mels(std::vector<kfr::univector<kfr::f64>> stft);
 
-    std::mutex _mtx;
-    std::condition_variable _cv;
-
-    int _fs_in;
-    int _fs_out;
+  std::vector<std::pair<uint32_t, int32_t>>
+  calc_fingerprints(std::vector<kfr::univector<kfr::f64>> mels);
 };
 
 #endif
