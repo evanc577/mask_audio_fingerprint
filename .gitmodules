@@ -7,3 +7,6 @@
 [submodule "cpp/unqlite"]
 	path = cpp/unqlite
 	url = https://github.com/symisc/unqlite.git
+[submodule "cpp/PicoSHA2"]
+	path = cpp/PicoSHA2
+	url = https://github.com/okdshin/PicoSHA2.git
