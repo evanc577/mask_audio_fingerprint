@@ -1,7 +1,7 @@
 #include "audio_helper.hpp"
 
-std::vector<int16_t> audio_helper::read_from_file(const std::string filename) {
-  std::vector<int16_t> ret(0);
+std::vector<double> audio_helper::read_from_file(const std::string filename) {
+  std::vector<double> ret(0);
 
   av_log_set_level(AV_LOG_QUIET);
 
@@ -45,7 +45,7 @@ std::vector<int16_t> audio_helper::read_from_file(const std::string filename) {
   av_opt_set_int(swr, "out_sample_rate", 4000, 0);
   av_opt_set_sample_fmt(swr, "in_sample_fmt",
                         (AVSampleFormat)stream->codecpar->format, 0);
-  av_opt_set_sample_fmt(swr, "out_sample_fmt", AV_SAMPLE_FMT_S16, 0);
+  av_opt_set_sample_fmt(swr, "out_sample_fmt", AV_SAMPLE_FMT_DBL, 0);
   swr_init(swr);
   if (!swr_is_initialized(swr)) {
     return ret;
@@ -70,7 +70,7 @@ std::vector<int16_t> audio_helper::read_from_file(const std::string filename) {
     }
 
     // resample frames
-    int16_t *buffer;
+    double *buffer;
     av_samples_alloc((uint8_t **)&buffer, NULL, 1, frame->nb_samples,
                      AV_SAMPLE_FMT_S16, 0);
     int frame_count =
@@ -90,22 +90,5 @@ std::vector<int16_t> audio_helper::read_from_file(const std::string filename) {
   avformat_close_input(&format);
   avformat_free_context(format);
 
-  return ret;
-}
-
-std::vector<int16_t> audio_helper::resample_4k(std::vector<int16_t> data,
-                                               int fs) {
-  struct SwrContext *swr = swr_alloc();
-  av_opt_set_int(swr, "in_channel_count", 1, 0);
-  av_opt_set_int(swr, "out_channel_count", 1, 0);
-  av_opt_set_int(swr, "in_channel_layout", AV_CH_LAYOUT_MONO, 0);
-  av_opt_set_int(swr, "out_channel_layout", AV_CH_LAYOUT_MONO, 0);
-  av_opt_set_int(swr, "in_sample_rate", fs, 0);
-  av_opt_set_int(swr, "out_sample_rate", 4000, 0);
-  av_opt_set_sample_fmt(swr, "in_sample_fmt", AV_SAMPLE_FMT_S16, 0);
-  av_opt_set_sample_fmt(swr, "out_sample_fmt", AV_SAMPLE_FMT_S16, 0);
-  swr_init(swr);
-
-  std::vector<int16_t> ret(0);
   return ret;
 }

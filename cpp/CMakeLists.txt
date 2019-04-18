@@ -4,7 +4,7 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 
-set(CMAKE_CXX_FLAGS "-Wall -Wextra")
+# set(CMAKE_CXX_FLAGS "-Wall -Wextra")
 set(CMAKE_CXX_FLAGS_DEBUG "-g")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 
@@ -20,19 +20,13 @@ set(ENABLE_DFT ON CACHE INTERNAL "")
 
 add_subdirectory(kfr)
 add_subdirectory(unqlite)
-
-set(SOURCES rtaudio/RtAudio.cpp)
-
-add_executable(ingest ingest.cpp audio_helper.cpp database.cpp fingerprint.cpp ${SOURCES})
-
 include_directories(rtaudio)
-include_directories(unqlite)
 
-target_link_libraries(ingest kfr)
-target_link_libraries(ingest kfr_dft)
-target_link_libraries(ingest pulse-simple pulse)
-target_link_libraries(ingest pthread)
-target_link_libraries(ingest avcodec avutil avformat swresample)
-target_link_libraries(ingest unqlite)
-
+link_libraries(kfr kfr_dft unqlite pthread)
 add_definitions(-D__LINUX_PULSE__)
+
+add_executable(ingest ingest.cpp audio_helper.cpp database.cpp fingerprint.cpp)
+target_link_libraries(ingest avcodec avutil avformat swresample)
+
+add_executable(identify identify.cpp database.cpp fingerprint.cpp rtaudio/RtAudio.cpp)
+target_link_libraries(identify pulse-simple pulse)

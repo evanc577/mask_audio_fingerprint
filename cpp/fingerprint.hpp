@@ -22,7 +22,9 @@ public:
   // ~fingerprint();
 
   std::vector<fp_t>
-  get_fingerprints(std::vector<int16_t> buffer);
+  get_fingerprints(const std::vector<double> &buffer);
+  std::vector<fp_t>
+  get_fingerprints(const kfr::univector<kfr::f64> &buffer);
 
   static constexpr int FS = 4000;
 

@@ -2,15 +2,20 @@
 
 // calculate fingerprint for the current buffer
 std::vector<fp_t>
-fingerprint::get_fingerprints(std::vector<int16_t> buffer) {
+fingerprint::get_fingerprints(const std::vector<double> &buffer) {
   kfr::univector<kfr::f64> kfr_buffer(buffer.begin(), buffer.end());
 
-  auto stft = calc_stft(kfr_buffer);
+  return get_fingerprints(kfr_buffer);
+}
+
+// calculate fingerprint for the current buffer
+std::vector<fp_t>
+fingerprint::get_fingerprints(const kfr::univector<kfr::f64> &buffer) {
+  auto stft = calc_stft(buffer);
   auto mels = calc_mels(stft);
   auto fingerprints = calc_fingerprints(mels);
   return fingerprints;
 }
-
 // calculate the spectrogram
 std::vector<kfr::univector<kfr::f64>>
 fingerprint::calc_stft(const kfr::univector<kfr::f64> &buffer) {

@@ -17,8 +17,7 @@ extern "C" {
 
 class audio_helper {
   public:
-    std::vector<int16_t> read_from_file(const std::string filename);
-    std::vector<int16_t> resample_4k(std::vector<int16_t> data, int fs);
+    std::vector<double> read_from_file(const std::string filename);
 };
 
 #endif

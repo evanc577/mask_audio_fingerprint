@@ -13,12 +13,12 @@ int audio_callback(void *outputBuffer, void *inputBuffer,
   for (size_t i = 0; i < nBufferFrames; ++i) {
     arr[i] = buf[i];
   }
-  fill_double_bufs(arr);
 
+  fill_double_bufs(arr);
   return 0;
 }
 
-void fill_double_bufs(const kfr::univector<kfr::f32> &data) {
+void fill_double_bufs(const kfr::univector<kfr::f64> &data) {
   if (input_buf.size() != data.size()) {
     input_buf.resize(3 * data.size());
   }
@@ -26,18 +26,24 @@ void fill_double_bufs(const kfr::univector<kfr::f32> &data) {
   if (input_buf_n == 0) {
     std::copy(data.begin(), data.end(), input_buf.begin());
     ++input_buf_n;
+    return;
   } else if (input_buf_n == 1) {
     std::copy(data.begin(), data.end(), input_buf.begin() + data.size());
     ++input_buf_n;
+    return;
   } else if (input_buf_n == 2) {
     std::copy(data.begin(), data.end(), input_buf.begin() + 2 * data.size());
     ++input_buf_n;
+    return;
+  } else {
+    std::copy(input_buf.begin() + data.size(), input_buf.end(), input_buf.begin());
+    std::copy(data.begin(), data.end(), input_buf.begin() + 2 * data.size());
   }
 
   // resample to 4 kHz
   auto r =
-      kfr::resampler<kfr::f32>(kfr::resample_quality::low, fp.FS, SAMPLE_RATE);
-  kfr::univector<kfr::f32> temp(data.size() * fp.FS / SAMPLE_RATE +
+      kfr::resampler<kfr::f64>(kfr::resample_quality::normal, fp.FS, SAMPLE_RATE);
+  kfr::univector<kfr::f64> temp(input_buf.size() * fp.FS / SAMPLE_RATE +
                                 r.get_delay());
   r.process(temp, input_buf);
 
@@ -71,11 +77,21 @@ void fill_double_bufs(const kfr::univector<kfr::f32> &data) {
 }
 
 void check_fingerprints() {
+  std::map<std::array<uint8_t, 16>, std::map<int, int>> hists;
+  int cur_max = 0;
+  int cur_max_t = 0;
+  std::array<uint8_t, 16> cur_max_id;
+  int elapsed = 0;
+
+  std::cout << "Listening" << std::flush;
+
   while (true) {
     // wait for one of the double buffers to fill
     std::unique_lock<std::mutex> lck(mtx);
     cv.wait(lck);
     lck.unlock();
+
+    std::cout << "." << std::flush;
 
     // error condition
     if (buf_1_full && buf_2_full) {
@@ -85,36 +101,68 @@ void check_fingerprints() {
 
     // copy from double buffer to process buffer
     if (buf_1_full) {
-      std::copy(process_buf.begin() + BUF_SIZE, process_buf.end(),
-                process_buf.begin());
-      std::copy(buf_1.begin(), buf_1.end(), process_buf.begin() + BUF_SIZE);
+      std::copy(buf_1.begin(), buf_1.end(), process_buf.begin());
     } else {
-      std::copy(process_buf.begin() + BUF_SIZE, process_buf.end(),
-                process_buf.begin());
-      std::copy(buf_2.begin(), buf_2.end(), process_buf.begin() + BUF_SIZE);
+      std::copy(buf_2.begin(), buf_2.end(), process_buf.begin());
     }
 
     // calculate fingerprints
     auto fingerprints = fp.get_fingerprints(process_buf);
 
     // find matching fingerprints in database
-    // TODO
+    auto matches = find_matches(fingerprints);
+
+    // update elapsed time
+    elapsed += BUF_SIZE * 100 / fp.FS;
 
     // compute histograms
-    // TODO
+    std::array<uint8_t, 16> temp_id;
+    for (const auto &m : matches) {
+      int dt = m.t - elapsed;
+      std::copy(m.id, m.id + 16, temp_id.begin());
 
-    // check threshold
-    // TODO
-    bool found_match = false;
+      // find histogram for id
+      auto it = hists.find(temp_id);
+      if (it == hists.end()) {
+        std::map<int, int> temp_t;
+        hists[temp_id] = temp_t;
+      }
 
-    // show output information if match is found
-    // TODO
-    if (found_match) {
-      break;
+      // insert delta time
+      auto it2 = hists[temp_id].find(dt);
+      if (it2 == hists[temp_id].end()) {
+        hists[temp_id][dt] = 0;
+      }
+      ++hists[temp_id][dt];
+
+      // update current max score
+      if (hists[temp_id][dt] > cur_max) {
+        cur_max = hists[temp_id][dt];
+        cur_max_t = dt;
+        std::copy(temp_id.begin(), temp_id.end(), cur_max_id.begin());
+      }
     }
 
-    // check elapsed time
-    // TODO
+    // show output information if match is found
+    if (cur_max >= THRESHOLD) {
+      auto result = songs_db.get_song(cur_max_id);
+      int elapsed_time = (elapsed + cur_max_t) * 10 / 1000;
+      int elapsed_min = elapsed_time / 60;
+      int elapsed_sec = elapsed_time % 60;
+
+      std::cout << std::endl;
+      printf("result:       %s\n", result.c_str());
+      printf("score:        %d\n", cur_max);
+      printf("elapsed time: %02d:%02d\n", elapsed_min, elapsed_sec);
+      return;
+    }
+
+    // check timeout
+    if (elapsed * 10 / 1000 > TIMEOUT) {
+      std::cout << std::endl;
+      std::cout << "No matching song found" << std::endl;
+      return;
+    }
 
     // reset flags
     if (buf_1_full) {
@@ -123,6 +171,34 @@ void check_fingerprints() {
       buf_2_full = false;
     }
   }
+}
+
+std::vector<fp_data_t> find_matches(const std::vector<fp_t> &fingerprints) {
+  std::vector<fp_data_t> all_matches;
+  int num_matches = 0;
+  for (fp_t f : fingerprints) {
+    uint32_t fp = f.fp;
+    for (int idx_1 = -1; idx_1 < 22; ++idx_1) {
+      for (int idx_2 = -1; idx_2 < idx_1; ++idx_2) {
+
+        uint32_t temp_fp = fp;
+        if (idx_1 != -1) {
+          temp_fp ^= 1 << idx_1;
+        }
+        if (idx_2 != -1) {
+          temp_fp ^= 1 << idx_2;
+        }
+
+        auto matches = fp_db.get_fp(temp_fp);
+        for (auto &m : matches) {
+          m.t -= f.t;
+        }
+        all_matches.insert(all_matches.end(), matches.begin(), matches.end());
+        num_matches += matches.size();
+      }
+    }
+  }
+  return all_matches;
 }
 
 int main() {
