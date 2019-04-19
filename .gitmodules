@@ -10,3 +10,6 @@
 [submodule "cpp/PicoSHA2"]
 	path = cpp/PicoSHA2
 	url = https://github.com/okdshin/PicoSHA2.git
+[submodule "android/oboe"]
+	path = android/oboe
+	url = https://github.com/google/oboe.git

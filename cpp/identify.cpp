@@ -109,6 +109,8 @@ void check_fingerprints() {
     // calculate fingerprints
     auto fingerprints = fp.get_fingerprints(process_buf);
 
+    std::cerr << fingerprints.size() << std::endl;
+
     // find matching fingerprints in database
     auto matches = find_matches(fingerprints);
 
