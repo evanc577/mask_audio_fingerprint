@@ -34,12 +34,15 @@ import android.view.MenuItem;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.widget.VideoView;
 
 import java.io.File;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 
 public class MainActivity extends Activity
@@ -47,17 +50,18 @@ public class MainActivity extends Activity
 
     // UI Variables
     Button   controlButton;
-    TextView statusView;
     static TextView freq_view;
     String  nativeSampleRate;
     String  nativeSampleBufSize;
     File externalFilesDir;
     String externalFilesDirStr;
     boolean supportRecording;
-    Boolean isPlaying = false;
+    AtomicBoolean isPlaying = new AtomicBoolean(false);
     // Static Values
     private static final int AUDIO_ECHO_REQUEST = 0;
     private static final int FRAME_SIZE = 1200;
+
+    private static final int VIDEO_DELAY = 2000;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -74,7 +78,6 @@ public class MainActivity extends Activity
 
         // Google NDK Stuff
         controlButton = (Button)findViewById((R.id.capture_control_button));
-        statusView = (TextView)findViewById(R.id.statusView);
         queryNativeAudioParameters();
         // initialize native audio system
         updateNativeAudioUI();
@@ -84,16 +87,20 @@ public class MainActivity extends Activity
 
         // Setup UI
         freq_view = (TextView)findViewById(R.id.textFrequency);
-        initializeFreqTextBackgroundTask(10);
+        initializeMaskTextBackgroundTask(250);
+        initializeMaskStatusBackgroundTask(10);
+
+        VideoView vv = findViewById(R.id.videoView);
+        vv.setVisibility(View.INVISIBLE);
     }
     @Override
-    protected void onDestroy() {
+    protected synchronized void onDestroy() {
         if (supportRecording) {
-            if (isPlaying) {
+            if (isPlaying.get()) {
                 stopPlay();
             }
             deleteSLEngine();
-            isPlaying = false;
+            isPlaying.set(false);
         }
         super.onDestroy();
     }
@@ -120,39 +127,90 @@ public class MainActivity extends Activity
         return super.onOptionsItemSelected(item);
     }
 
-    private void startEcho() {
+    private synchronized void startEcho() {
         if(!supportRecording){
             return;
         }
-        if (!isPlaying) {
+        if (!isPlaying.get()) {
             if(!createSLBufferQueueAudioPlayer()) {
-                statusView.setText(getString(R.string.error_player));
                 return;
             }
             if(!createAudioRecorder()) {
                 deleteSLBufferQueueAudioPlayer();
-                statusView.setText(getString(R.string.error_recorder));
                 return;
             }
             initIdentify(externalFilesDirStr);
             startPlay();   // this must include startRecording()
-            statusView.setText(getString(R.string.status_echoing));
+
+            // update spinner
+            ProgressBar spinner;
+            spinner = (ProgressBar)findViewById(R.id.progressBar);
+            spinner.setIndeterminate(true);
+
+            // update other ui elements
+            isPlaying.set(true);
+            controlButton.setText(getString(R.string.StopEcho));
+            VideoView vv = findViewById(R.id.videoView);
+            vv.stopPlayback();
+            vv.suspend();
+            vv.setVisibility(View.INVISIBLE);
         } else {
-            stopPlay();  //this must include stopRecording()
-            deleteIdentify();
-            updateNativeAudioUI();
-            deleteAudioRecorder();
-            deleteSLBufferQueueAudioPlayer();
+            timeout();
         }
-        isPlaying = !isPlaying;
-        controlButton.setText(getString((isPlaying == true) ?
-                R.string.StopEcho: R.string.StartEcho));
+    }
+
+    public synchronized void foundSong() {
+        if (!isPlaying.get()) {
+            return;
+        }
+        isPlaying.set(false);
+
+        // proof of concept video sync
+        if (getMaskText().equals("siren_audio.flac")) {
+            VideoView vv = findViewById(R.id.videoView);
+            vv.setVisibility(View.VISIBLE);
+            vv.setVideoPath(externalFilesDirStr + "/videos/siren_video.mp4");
+            vv.seekTo(getMaskTime()*1000 + VIDEO_DELAY);
+            vv.start();
+        }
+
+        // update spinner
+        ProgressBar spinner;
+        spinner = (ProgressBar)findViewById(R.id.progressBar);
+        spinner.setIndeterminate(false);
+        spinner.setProgress(100);
+
+        stopPlay();
+        deleteIdentify();
+        updateNativeAudioUI();
+        deleteAudioRecorder();
+        deleteSLBufferQueueAudioPlayer();
+        controlButton.setText(getString(R.string.StartEcho));
+    }
+
+    public synchronized void timeout() {
+        if (!isPlaying.get()) {
+            return;
+        }
+        isPlaying.set(false);
+
+        // update spinner
+        ProgressBar spinner;
+        spinner = (ProgressBar)findViewById(R.id.progressBar);
+        spinner.setIndeterminate(false);
+        spinner.setProgress(0);
+
+        stopPlay();
+        deleteIdentify();
+        updateNativeAudioUI();
+        deleteAudioRecorder();
+        deleteSLBufferQueueAudioPlayer();
+        controlButton.setText(getString(R.string.StartEcho));
     }
 
     public void onEchoClick(View view) {
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) !=
                 PackageManager.PERMISSION_GRANTED) {
-            statusView.setText(getString(R.string.status_record_perm));
             ActivityCompat.requestPermissions(
                     this,
                     new String[] { Manifest.permission.RECORD_AUDIO },
@@ -160,11 +218,6 @@ public class MainActivity extends Activity
             return;
         }
         startEcho();
-    }
-
-    public void getLowLatencyParameters(View view) {
-        updateNativeAudioUI();
-        return;
     }
 
     private void queryNativeAudioParameters() {
@@ -183,14 +236,9 @@ public class MainActivity extends Activity
     }
     private void updateNativeAudioUI() {
         if (!supportRecording) {
-            statusView.setText(getString(R.string.error_no_mic));
             controlButton.setEnabled(false);
             return;
         }
-
-        statusView.setText("nativeSampleRate    = " + nativeSampleRate + "\n" +
-                "nativeSampleBufSize = " + nativeSampleBufSize + "\n");
-
     }
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
@@ -212,7 +260,6 @@ public class MainActivity extends Activity
              * was not clicked. The assumption is that user will re-click the "start" button
              * (to retry), or shutdown the app in normal way.
              */
-            statusView.setText(getString(R.string.error_no_permission));
             Toast.makeText(getApplicationContext(),
                     getString(R.string.prompt_permission),
                     Toast.LENGTH_SHORT).show();
@@ -224,8 +271,6 @@ public class MainActivity extends Activity
          * re-try the "start" button to perform the normal operation. This saves us the extra
          * logic in code for async processing of the button listener.
          */
-        statusView.setText("RECORD_AUDIO permission granted, touch " +
-                getString(R.string.StartEcho) + " to begin");
 
         // The callback runs on app's thread, so we are safe to resume the action
         startEcho();
@@ -233,7 +278,7 @@ public class MainActivity extends Activity
 
     // All this does is calls the UpdateStftTask at a fixed interval
     // http://stackoverflow.com/questions/6531950/how-to-execute-async-task-repeatedly-after-fixed-time-intervals
-    public void initializeFreqTextBackgroundTask(int timeInMs) {
+    public void initializeMaskTextBackgroundTask(int timeInMs) {
         final Handler handler = new Handler();
         Timer timer = new Timer();
         TimerTask doAsynchronousTask = new TimerTask() {
@@ -242,8 +287,8 @@ public class MainActivity extends Activity
                 handler.post(new Runnable() {
                     public void run() {
                         try {
-                            UpdateFreqTextTask performFreqTextUpdate = new UpdateFreqTextTask();
-                            performFreqTextUpdate.execute();
+                            UpdateMaskTextTask performMaskTextUpdate = new UpdateMaskTextTask();
+                            performMaskTextUpdate.execute();
                         } catch (Exception e) {
                             // TODO Auto-generated catch block
                         }
@@ -255,12 +300,12 @@ public class MainActivity extends Activity
     }
 
     // UI update
-    private class UpdateFreqTextTask extends AsyncTask<Void, String, Void> {
+    private class UpdateMaskTextTask extends AsyncTask<Void, String, Void> {
         @Override
         protected Void doInBackground(Void... params) {
 
             // Update screen, needs to be done on UI thread
-            publishProgress(getMaskStatus());
+            publishProgress(getMaskText());
 
             return null;
         }
@@ -270,6 +315,48 @@ public class MainActivity extends Activity
         }
     }
 
+    public void initializeMaskStatusBackgroundTask(int timeInMs) {
+        final Handler handler = new Handler();
+        Timer timer = new Timer();
+        TimerTask doAsynchronousTask = new TimerTask() {
+            @Override
+            public void run() {
+                handler.post(new Runnable() {
+                    public void run() {
+                        try {
+                            UpdateMaskStatusTask performMaskStatusUpdate = new UpdateMaskStatusTask();
+                            performMaskStatusUpdate.execute();
+                        } catch (Exception e) {
+                            // TODO Auto-generated catch block
+                        }
+                    }
+                });
+            }
+        };
+        timer.schedule(doAsynchronousTask, 0, timeInMs); // execute every 100 ms
+    }
+
+    // UI update
+    private class UpdateMaskStatusTask extends AsyncTask<Void, Integer, Void> {
+        @Override
+        protected Void doInBackground(Void... params) {
+
+            // Update screen, needs to be done on UI thread
+            publishProgress(getMaskStatus());
+
+            return null;
+        }
+
+        protected void onProgressUpdate(Integer... v) {
+            if (v[0] == 0) {
+                return;
+            } else if (v[0] == 1) { // found
+                foundSong();
+            } else if (v[0] == 2) { // timeout
+                timeout();
+            }
+        }
+    }
     /*
      * Loading our Libs
      */
@@ -293,5 +380,7 @@ public class MainActivity extends Activity
     public static native void initIdentify(String s);
     public static native void deleteIdentify();
 
-    public static native String getMaskStatus();
+    public native String getMaskText();
+    public native int getMaskStatus();
+    public native int getMaskTime();
 }

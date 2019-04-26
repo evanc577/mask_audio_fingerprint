@@ -13,3 +13,24 @@
 [submodule "android/oboe"]
 	path = android/oboe
 	url = https://github.com/google/oboe.git
+[submodule "android/ece420_lab4/MaskOboe/app/src/main/cpp/PicoSHA2"]
+	path = android/ece420_lab4/MaskOboe/app/src/main/cpp/PicoSHA2
+	url = https://github.com/okdshin/PicoSHA2.git
+[submodule "android/ece420_lab4/MaskOboe/app/src/main/cpp/kfr"]
+	path = android/ece420_lab4/MaskOboe/app/src/main/cpp/kfr
+	url = https://github.com/kfrlib/kfr.git
+[submodule "android/ece420_lab4/MaskOboe/app/src/main/cpp/unqlite"]
+	path = android/ece420_lab4/MaskOboe/app/src/main/cpp/unqlite
+	url = https://github.com/symisc/unqlite.git
+[submodule "android/ece420_lab4/MaskOboe/app/src/main/cpp/oboe"]
+	path = android/ece420_lab4/MaskOboe/app/src/main/cpp/oboe
+	url = https://github.com/google/oboe.git
+[submodule "android/ece420_lab4/MaskOboe2/app/src/main/cpp/oboe"]
+	path = android/ece420_lab4/MaskOboe2/app/src/main/cpp/oboe
+	url = https://github.com/google/oboe.git
+[submodule "android/ece420_lab4/MaskOboe2/app/src/main/cpp/kfr"]
+	path = android/ece420_lab4/MaskOboe2/app/src/main/cpp/kfr
+	url = https://github.com/kfrlib/kfr.git
+[submodule "android/ece420_lab4/MaskOboe2/app/src/main/cpp/unqlite"]
+	path = android/ece420_lab4/MaskOboe2/app/src/main/cpp/unqlite
+	url = https://github.com/symisc/unqlite.git

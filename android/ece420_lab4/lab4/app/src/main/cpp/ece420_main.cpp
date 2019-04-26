@@ -10,7 +10,13 @@
 // JNI Function
 extern "C" {
 JNIEXPORT jstring JNICALL
-Java_com_ece420_lab4_MainActivity_getMaskStatus(JNIEnv *env, jclass);
+Java_com_ece420_lab4_MainActivity_getMaskText(JNIEnv *env, jobject);
+
+JNIEXPORT jint JNICALL
+Java_com_ece420_lab4_MainActivity_getMaskStatus(JNIEnv *env, jobject);
+
+JNIEXPORT jint JNICALL
+Java_com_ece420_lab4_MainActivity_getMaskTime(JNIEnv *env, jobject);
 
 JNIEXPORT void JNICALL
 Java_com_ece420_lab4_MainActivity_initIdentify(JNIEnv *env, jclass, jstring path);
@@ -20,46 +26,45 @@ Java_com_ece420_lab4_MainActivity_deleteIdentify(JNIEnv *env, jclass);
 }
 
 // Student Variables
-#define F_S 48000
-#define FRAME_SIZE 1200
 int counter = 0;
 std::string status = "";
 
 void ece420ProcessFrame(sample_buf *dataBuf) {
     int16_t *int_buf = reinterpret_cast<int16_t *>(dataBuf->buf_);
-    std::vector<double> v(dataBuf->size_ / sizeof(int16_t));
-    for (int i = 0; i < v.size(); ++i) {
-        v[i] = static_cast<double>(int_buf[i]);
+    std::vector<double> data(dataBuf->size_ / sizeof(int16_t));
+    for (int i = 0; i < dataBuf->size_; ++i) {
+        data[i] = static_cast<double>(int_buf[i]);
     }
 
     if (input_buf_n == 0) {
-        std::copy(v.begin(), v.end(), input_buf.begin()); ++input_buf_n; return;
+        std::copy(data.begin(), data.end(), input_buf.begin()); ++input_buf_n; return;
     } else if (input_buf_n == 1) {
-        std::copy(v.begin(), v.end(), input_buf.begin() + v.size());
+        std::copy(data.begin(), data.end(), input_buf.begin() + data.size());
         ++input_buf_n;
         return;
     } else if (input_buf_n == 2) {
-        std::copy(v.begin(), v.end(), input_buf.begin() + 2 * v.size());
+        std::copy(data.begin(), data.end(), input_buf.begin() + 2 * data.size());
         ++input_buf_n;
         return;
     } else {
-        std::copy(input_buf.begin() + v.size(), input_buf.end(), input_buf.begin());
-        std::copy(v.begin(), v.end(), input_buf.begin() + 2 * v.size());
+        std::copy(input_buf.begin() + data.size(), input_buf.end(), input_buf.begin());
+        std::copy(data.begin(), data.end(), input_buf.begin() + 2 * data.size());
     }
 
 
     // resample to 4 kHz
     auto r =
             kfr::resampler<kfr::f64>(kfr::resample_quality::normal, fp.FS, SAMPLE_RATE);
-    kfr::univector<kfr::f64> temp(3*BUF_SIZE * fp.FS / SAMPLE_RATE +
+    kfr::univector<kfr::f64> temp(input_buf.size() * fp.FS / SAMPLE_RATE +
                                   r.get_delay());
     r.process(temp, input_buf);
 
     // write resampled signal to the double buffers
-    auto begin = temp.begin() + v.size() * fp.FS / SAMPLE_RATE + r.get_delay();
-    auto end = begin + v.size() * fp.FS / SAMPLE_RATE;
+    auto begin = temp.begin() + data.size() * fp.FS / SAMPLE_RATE + r.get_delay();
+    auto end = begin + data.size() * fp.FS / SAMPLE_RATE;
 
     for (auto it = begin; it != end; ++it) {
+
         if (doing_buf_1 && !buf_1_full) {
             buf_1[cur_idx] = *it;
             if (++cur_idx == BUF_SIZE) {
@@ -117,6 +122,7 @@ void check_fingerprints() {
             std::copy(buf_2.begin(), buf_2.end(), process_buf.begin());
         }
 
+
         // calculate fingerprints
         auto fingerprints = fp.get_fingerprints(process_buf);
 
@@ -146,6 +152,7 @@ void check_fingerprints() {
             }
             ++hists[temp_id][dt];
 
+
             // update current max score
             if (hists[temp_id][dt] > cur_max) {
                 cur_max = hists[temp_id][dt];
@@ -154,26 +161,28 @@ void check_fingerprints() {
             }
         }
 
-        counter++;
-        status = std::to_string(fingerprints.size());
+        ++counter;
+        status = std::to_string(cur_max);
 
         // show output information if match is found
         if (cur_max >= THRESHOLD) {
             auto result = songs_db.get_song(cur_max_id);
             int elapsed_time = (elapsed + cur_max_t) * 10 / 1000;
-            int elapsed_min = elapsed_time / 60;
-            int elapsed_sec = elapsed_time % 60;
+            elapsed_min = elapsed_time / 60;
+            elapsed_sec = elapsed_time % 60;
             (void)elapsed_time;
             (void)elapsed_min;
             (void)elapsed_sec;
 
             status = result;
+            found = true;
             return;
         }
 
         // check timeout
         if (elapsed * 10 / 1000 > TIMEOUT) {
             status = "timeout";
+            timeout = true;
             return;
         }
 
@@ -219,14 +228,42 @@ std::vector<fp_data_t> find_matches(const std::vector<fp_t> &fingerprints, datab
 }
 
 
+extern "C" {
+
 JNIEXPORT jstring JNICALL
-Java_com_ece420_lab4_MainActivity_getMaskStatus(JNIEnv *env, jclass) {
-    std::string ret = std::to_string(counter) + "---" + status;
+Java_com_ece420_lab4_MainActivity_getMaskText(JNIEnv *env, jobject obj) {
+    std::string ret;
+    if (found) {
+        ret = status;
+    } else if (timeout) {
+        ret = "Timed out";
+    } else if (initial || done) {
+        ret = "Press start to identify";
+    } else {
+        ret = "Listening...";
+    }
     return env->NewStringUTF(ret.c_str());
+}
+
+JNIEXPORT jint JNICALL
+Java_com_ece420_lab4_MainActivity_getMaskStatus(JNIEnv *env, jobject obj) {
+    if (found) {
+        return 1;
+    } else if (timeout) {
+        return 2;
+    } else {
+        return 0;
+    }
+}
+
+JNIEXPORT jint JNICALL
+Java_com_ece420_lab4_MainActivity_getMaskTime(JNIEnv *env, jobject obj) {
+    return 60*elapsed_min + elapsed_sec;
 }
 
 JNIEXPORT void JNICALL
 Java_com_ece420_lab4_MainActivity_initIdentify(JNIEnv *env, jclass, jstring path) {
+    initial = false;
     counter = 0;
     status = "";
     buf_1_full = false;
@@ -235,6 +272,8 @@ Java_com_ece420_lab4_MainActivity_initIdentify(JNIEnv *env, jclass, jstring path
     doing_buf_1 = true;
     cur_idx = 0;
     input_buf_n = 0;
+    timeout = false;
+    found = false;
     const char *native_path = env->GetStringUTFChars(path, NULL);
     dir_path = native_path;
     env->ReleaseStringUTFChars(path, native_path);
@@ -247,10 +286,13 @@ Java_com_ece420_lab4_MainActivity_initIdentify(JNIEnv *env, jclass, jstring path
 
     std::thread id_thread(check_fingerprints);
     id_thread.detach();
+
 }
 
 JNIEXPORT void JNICALL
 Java_com_ece420_lab4_MainActivity_deleteIdentify(JNIEnv *env, jclass) {
     done = true;
     cv.notify_all();
+}
+
 }

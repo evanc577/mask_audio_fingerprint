@@ -25,8 +25,8 @@
 #include "kfr/dsp.hpp"
 #include "kfr/io.hpp"
 
-static constexpr int THRESHOLD = 4;
-static constexpr int TIMEOUT = 60;
+static constexpr int THRESHOLD = 5;
+static constexpr int TIMEOUT = 30;
 
 static constexpr int BUF_SIZE = 2000;
 static constexpr int SAMPLE_RATE = 48000;
@@ -51,5 +51,13 @@ static int input_buf_n = 0;
 static fingerprint fp;
 
 static std::string dir_path;
+
+static bool initial = true;
+static bool timeout = false;
+static bool found = false;
+static int elapsed_min;
+static int elapsed_sec;
+
+
 
 #endif //LAB4_IDENTIFY_H
