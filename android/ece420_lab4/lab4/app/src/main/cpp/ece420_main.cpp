@@ -32,8 +32,9 @@ std::string status = "";
 void ece420ProcessFrame(sample_buf *dataBuf) {
     int16_t *int_buf = reinterpret_cast<int16_t *>(dataBuf->buf_);
     std::vector<double> data(dataBuf->size_ / sizeof(int16_t));
-    for (int i = 0; i < dataBuf->size_; ++i) {
+    for (int i = 0; i < dataBuf->size_ / sizeof(int16_t); ++i) {
         data[i] = static_cast<double>(int_buf[i]);
+        int_buf[i] = 0;
     }
 
     if (input_buf_n == 0) {
