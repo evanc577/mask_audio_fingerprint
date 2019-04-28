@@ -148,12 +148,12 @@ public class MainActivity extends Activity
             spinner.setIndeterminate(true);
 
             // update other ui elements
-            isPlaying.set(true);
             controlButton.setText(getString(R.string.StopEcho));
             VideoView vv = findViewById(R.id.videoView);
             vv.stopPlayback();
             vv.suspend();
             vv.setVisibility(View.INVISIBLE);
+            isPlaying.set(true);
         } else {
             timeout();
         }
@@ -166,11 +166,19 @@ public class MainActivity extends Activity
         isPlaying.set(false);
 
         // proof of concept video sync
-        if (getMaskText().equals("siren_audio.flac")) {
+        String song = getMaskText();
+        int time = getMaskTime() + VIDEO_DELAY;
+        if (song.equals("siren_audio.flac")) {
             VideoView vv = findViewById(R.id.videoView);
             vv.setVisibility(View.VISIBLE);
             vv.setVideoPath(externalFilesDirStr + "/videos/siren_video.mp4");
-            vv.seekTo(getMaskTime()*1000 + VIDEO_DELAY);
+            vv.seekTo(time);
+            vv.start();
+        } else if (song.equals("fancy_audio.flac")) {
+            VideoView vv = findViewById(R.id.videoView);
+            vv.setVisibility(View.VISIBLE);
+            vv.setVideoPath(externalFilesDirStr + "/videos/fancy_video.mp4");
+            vv.seekTo(time);
             vv.start();
         }
 

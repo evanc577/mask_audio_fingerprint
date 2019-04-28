@@ -167,9 +167,9 @@ void check_fingerprints() {
         // show output information if match is found
         if (cur_max >= THRESHOLD) {
             auto result = songs_db.get_song(cur_max_id);
-            int elapsed_time = (elapsed + cur_max_t) * 10 / 1000;
-            elapsed_min = elapsed_time / 60;
-            elapsed_sec = elapsed_time % 60;
+            elapsed_time = (elapsed + cur_max_t) * 10;
+            elapsed_min = elapsed_time / 1000 / 60;
+            elapsed_sec = elapsed_time / 1000 % 60;
             (void)elapsed_time;
             (void)elapsed_min;
             (void)elapsed_sec;
@@ -258,7 +258,7 @@ Java_com_ece420_lab4_MainActivity_getMaskStatus(JNIEnv *env, jobject obj) {
 
 JNIEXPORT jint JNICALL
 Java_com_ece420_lab4_MainActivity_getMaskTime(JNIEnv *env, jobject obj) {
-    return 60*elapsed_min + elapsed_sec;
+    return elapsed_time;
 }
 
 JNIEXPORT void JNICALL
@@ -277,12 +277,6 @@ Java_com_ece420_lab4_MainActivity_initIdentify(JNIEnv *env, jclass, jstring path
     const char *native_path = env->GetStringUTFChars(path, NULL);
     dir_path = native_path;
     env->ReleaseStringUTFChars(path, native_path);
-
-    std::string test_path = dir_path + "/test.txt";
-
-    std::ofstream outfile(test_path);
-    outfile << "TEST TEST" << std::endl;
-    outfile.close();
 
     std::thread id_thread(check_fingerprints);
     id_thread.detach();

@@ -55,6 +55,7 @@ static std::string dir_path;
 static bool initial = true;
 static bool timeout = false;
 static bool found = false;
+static int elapsed_time;
 static int elapsed_min;
 static int elapsed_sec;
 
