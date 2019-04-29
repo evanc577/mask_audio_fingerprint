@@ -9,7 +9,7 @@
         android:allowBackup="false"
         android:fullBackupContent="false"
         android:supportsRtl="true"
-        android:icon="@mipmap/ic_launcher"
+        android:icon="@mipmap/mask"
         android:label="Mask"
         android:theme="@style/AppTheme" >
       <activity

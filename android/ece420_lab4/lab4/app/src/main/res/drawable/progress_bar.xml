@@ -12,7 +12,7 @@ android:toDegrees="720" >
 
     <gradient
         android:angle="0"
-        android:endColor="#6200ea"
+        android:endColor="#162038"
         android:startColor="@android:color/transparent"
         android:type="sweep"
         android:useLevel="false" />

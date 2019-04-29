@@ -38,7 +38,9 @@ void ece420ProcessFrame(sample_buf *dataBuf) {
     }
 
     if (input_buf_n == 0) {
-        std::copy(data.begin(), data.end(), input_buf.begin()); ++input_buf_n; return;
+        std::copy(data.begin(), data.end(), input_buf.begin());
+        ++input_buf_n;
+        return;
     } else if (input_buf_n == 1) {
         std::copy(data.begin(), data.end(), input_buf.begin() + data.size());
         ++input_buf_n;
@@ -56,7 +58,7 @@ void ece420ProcessFrame(sample_buf *dataBuf) {
     // resample to 4 kHz
     auto r =
             kfr::resampler<kfr::f64>(kfr::resample_quality::normal, fp.FS, SAMPLE_RATE);
-    kfr::univector<kfr::f64> temp(input_buf.size() * fp.FS / SAMPLE_RATE +
+    kfr::univector<kfr::f64> temp(3 * BUF_SIZE * fp.FS / SAMPLE_RATE +
                                   r.get_delay());
     r.process(temp, input_buf);
 
@@ -153,17 +155,22 @@ void check_fingerprints() {
             }
             ++hists[temp_id][dt];
 
+            int temp_max = hists[temp_id][dt];
+            if (hists[temp_id].find(dt-1) != hists[temp_id].end()) {
+                temp_max += hists[temp_id][dt-1];
+            }
+            if (hists[temp_id].find(dt+1) != hists[temp_id].end()) {
+                temp_max += hists[temp_id][dt+1];
+            }
+
 
             // update current max score
-            if (hists[temp_id][dt] > cur_max) {
-                cur_max = hists[temp_id][dt];
+            if (temp_max > cur_max) {
+                cur_max = temp_max;
                 cur_max_t = dt;
                 std::copy(temp_id.begin(), temp_id.end(), cur_max_id.begin());
             }
         }
-
-        ++counter;
-        status = std::to_string(cur_max);
 
         // show output information if match is found
         if (cur_max >= THRESHOLD) {
@@ -239,7 +246,7 @@ Java_com_ece420_lab4_MainActivity_getMaskText(JNIEnv *env, jobject obj) {
     } else if (timeout) {
         ret = "Timed out";
     } else if (initial || done) {
-        ret = "Press start to identify";
+        ret = "Tap to Mask";
     } else {
         ret = "Listening...";
     }

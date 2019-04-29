@@ -21,17 +21,25 @@ import android.content.Context;
 import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
 import android.Manifest;
+import android.graphics.Color;
 import android.media.AudioFormat;
 import android.media.AudioManager;
 import android.media.AudioRecord;
+import android.media.MediaMetadataRetriever;
+import android.media.MediaPlayer;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Handler;
+import android.provider.MediaStore;
 import android.support.annotation.NonNull;
+import android.support.constraint.ConstraintLayout;
 import android.support.v4.app.ActivityCompat;
+import android.view.Display;
+import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.ProgressBar;
@@ -51,10 +59,12 @@ public class MainActivity extends Activity
     // UI Variables
     Button   controlButton;
     static TextView freq_view;
+    static TextView start_view;
     String  nativeSampleRate;
     String  nativeSampleBufSize;
     File externalFilesDir;
     String externalFilesDirStr;
+    String currentText = "";
     boolean supportRecording;
     AtomicBoolean isPlaying = new AtomicBoolean(false);
     // Static Values
@@ -78,6 +88,7 @@ public class MainActivity extends Activity
 
         // Google NDK Stuff
         controlButton = (Button)findViewById((R.id.capture_control_button));
+        controlButton.setBackground(getDrawable(R.drawable.start_button));
         queryNativeAudioParameters();
         // initialize native audio system
         updateNativeAudioUI();
@@ -87,11 +98,36 @@ public class MainActivity extends Activity
 
         // Setup UI
         freq_view = (TextView)findViewById(R.id.textFrequency);
+        freq_view.setVisibility(View.GONE);
+        start_view = (TextView)findViewById(R.id.textStart);
+        start_view.setVisibility(View.VISIBLE);
+
         initializeMaskTextBackgroundTask(250);
         initializeMaskStatusBackgroundTask(10);
 
         VideoView vv = findViewById(R.id.videoView);
         vv.setVisibility(View.INVISIBLE);
+        vv.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
+            @Override
+            public void onCompletion(MediaPlayer mp) {
+                VideoView vv = findViewById(R.id.videoView);
+                vv.setVisibility(View.INVISIBLE);
+                vv.stopPlayback();
+                vv.suspend();
+            }
+        });
+        vv.setOnPreparedListener(new MediaPlayer.OnPreparedListener() {
+            @Override
+            public void onPrepared(MediaPlayer mp) {
+                int width = mp.getVideoWidth();
+                int height = mp.getVideoHeight();
+                VideoView vv = findViewById(R.id.videoView);
+                ConstraintLayout.LayoutParams params = (ConstraintLayout.LayoutParams)vv.getLayoutParams();
+                params.width = vv.getMeasuredWidth();
+                params.height = params.width * height / width;
+                vv.setLayoutParams(params);
+            }
+        });
     }
     @Override
     protected synchronized void onDestroy() {
@@ -107,24 +143,7 @@ public class MainActivity extends Activity
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
-        // Inflate the menu; this adds items to the action bar if it is present.
-        getMenuInflater().inflate(R.menu.menu_main, menu);
-        return true;
-    }
-
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        // Handle action bar item clicks here. The action bar will
-        // automatically handle clicks on the Home/Up button, so long
-        // as you specify a parent activity in AndroidManifest.xml.
-        int id = item.getItemId();
-
-        //noinspection SimplifiableIfStatement
-        if (id == R.id.action_settings) {
-            return true;
-        }
-
-        return super.onOptionsItemSelected(item);
+        return false;
     }
 
     private synchronized void startEcho() {
@@ -149,10 +168,13 @@ public class MainActivity extends Activity
 
             // update other ui elements
             controlButton.setText(getString(R.string.StopEcho));
+            controlButton.setBackground(getDrawable(R.drawable.stop_button));
+            start_view.setVisibility(View.GONE);
+            freq_view.setVisibility(View.VISIBLE);
             VideoView vv = findViewById(R.id.videoView);
+            vv.setVisibility(View.INVISIBLE);
             vv.stopPlayback();
             vv.suspend();
-            vv.setVisibility(View.INVISIBLE);
             isPlaying.set(true);
         } else {
             timeout();
@@ -167,19 +189,21 @@ public class MainActivity extends Activity
 
         // proof of concept video sync
         String song = getMaskText();
+        String videoPath = "";
         int time = getMaskTime() + VIDEO_DELAY;
+        VideoView vv = findViewById(R.id.videoView);
+
         if (song.equals("siren_audio.flac")) {
-            VideoView vv = findViewById(R.id.videoView);
-            vv.setVisibility(View.VISIBLE);
-            vv.setVideoPath(externalFilesDirStr + "/videos/siren_video.mp4");
-            vv.seekTo(time);
-            vv.start();
+            videoPath = externalFilesDirStr + "/videos/siren_video.mp4";
         } else if (song.equals("fancy_audio.flac")) {
-            VideoView vv = findViewById(R.id.videoView);
-            vv.setVisibility(View.VISIBLE);
-            vv.setVideoPath(externalFilesDirStr + "/videos/fancy_video.mp4");
+            videoPath = externalFilesDirStr + "/videos/fancy_video.mp4";
+        }
+
+        if (!videoPath.equals("")) {
+            vv.setVideoPath(videoPath);
             vv.seekTo(time);
             vv.start();
+            vv.setVisibility(View.VISIBLE);
         }
 
         // update spinner
@@ -194,6 +218,7 @@ public class MainActivity extends Activity
         deleteAudioRecorder();
         deleteSLBufferQueueAudioPlayer();
         controlButton.setText(getString(R.string.StartEcho));
+        controlButton.setBackground(getDrawable(R.drawable.start_button));
     }
 
     public synchronized void timeout() {
@@ -214,6 +239,9 @@ public class MainActivity extends Activity
         deleteAudioRecorder();
         deleteSLBufferQueueAudioPlayer();
         controlButton.setText(getString(R.string.StartEcho));
+        controlButton.setBackground(getDrawable(R.drawable.start_button));
+        freq_view.setVisibility(View.GONE);
+    start_view.setVisibility(View.VISIBLE);
     }
 
     public void onEchoClick(View view) {
@@ -319,7 +347,10 @@ public class MainActivity extends Activity
         }
 
         protected void onProgressUpdate(String... newString) {
-            freq_view.setText(newString[0]);
+            if (!currentText.equals(newString[0])) {
+                freq_view.setText(newString[0]);
+                currentText = newString[0];
+            }
         }
     }
 
