@@ -246,7 +246,7 @@ Java_com_ece420_lab4_MainActivity_getMaskText(JNIEnv *env, jobject obj) {
     } else if (timeout) {
         ret = "Timed out";
     } else if (initial || done) {
-        ret = "Tap to Mask";
+        ret = "";
     } else {
         ret = "Listening...";
     }
