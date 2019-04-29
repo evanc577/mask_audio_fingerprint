@@ -28,12 +28,14 @@ import android.media.AudioRecord;
 import android.media.MediaMetadataRetriever;
 import android.media.MediaPlayer;
 import android.os.AsyncTask;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.provider.MediaStore;
 import android.support.annotation.NonNull;
 import android.support.constraint.ConstraintLayout;
 import android.support.v4.app.ActivityCompat;
+import android.support.v7.widget.AppCompatTextView;
 import android.view.Display;
 import android.view.LayoutInflater;
 import android.view.Menu;
@@ -48,6 +50,7 @@ import android.widget.Toast;
 import android.widget.VideoView;
 
 import java.io.File;
+import java.lang.reflect.Field;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -99,6 +102,7 @@ public class MainActivity extends Activity
         // Setup UI
         freq_view = (TextView)findViewById(R.id.textFrequency);
         freq_view.setVisibility(View.GONE);
+        freq_view.setSelected(true);
         start_view = (TextView)findViewById(R.id.textStart);
         start_view.setVisibility(View.VISIBLE);
 
