@@ -57,8 +57,8 @@ void ece420ProcessFrame(sample_buf *dataBuf) {
 
     // resample to 4 kHz
     auto r =
-            kfr::resampler<kfr::f64>(kfr::resample_quality::normal, fp.FS, SAMPLE_RATE);
-    kfr::univector<kfr::f64> temp(3 * BUF_SIZE * fp.FS / SAMPLE_RATE +
+            kfr::resampler<kfr::f64>(kfr::resample_quality::high, fp.FS, SAMPLE_RATE);
+    kfr::univector<kfr::f64> temp(3 * BUFFER_FRAMES * fp.FS / SAMPLE_RATE +
                                   r.get_delay());
     r.process(temp, input_buf);
 
@@ -172,8 +172,10 @@ void check_fingerprints() {
             }
         }
 
+        counter = cur_max;
+
         // show output information if match is found
-        if (cur_max >= THRESHOLD) {
+        if ((cur_max >= THRESHOLD && elapsed * 10 / 1000 < TIMEOUT) || cur_max >= THRESHOLD_2) {
             auto result = songs_db.get_song(cur_max_id);
             elapsed_time = (elapsed + cur_max_t) * 10;
             elapsed_min = elapsed_time / 1000 / 60;
@@ -188,7 +190,7 @@ void check_fingerprints() {
         }
 
         // check timeout
-        if (elapsed * 10 / 1000 > TIMEOUT) {
+        if (elapsed * 10 / 1000 > TIMEOUT_2) {
             status = "timeout";
             timeout = true;
             return;
@@ -249,6 +251,7 @@ Java_com_ece420_lab4_MainActivity_getMaskText(JNIEnv *env, jobject obj) {
         ret = "";
     } else {
         ret = "Listening...";
+//        ret += std::to_string(counter);
     }
     return env->NewStringUTF(ret.c_str());
 }

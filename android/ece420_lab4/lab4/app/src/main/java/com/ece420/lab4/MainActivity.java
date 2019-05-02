@@ -31,6 +31,8 @@ import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.VibrationEffect;
+import android.os.Vibrator;
 import android.provider.MediaStore;
 import android.support.annotation.NonNull;
 import android.support.constraint.ConstraintLayout;
@@ -72,9 +74,9 @@ public class MainActivity extends Activity
     AtomicBoolean isPlaying = new AtomicBoolean(false);
     // Static Values
     private static final int AUDIO_ECHO_REQUEST = 0;
-    private static final int FRAME_SIZE = 1200;
+    private static final int FRAME_SIZE = 4800;
 
-    private static final int VIDEO_DELAY = 2000;
+    private static final int VIDEO_DELAY = 2500;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -191,6 +193,12 @@ public class MainActivity extends Activity
         }
         isPlaying.set(false);
 
+        if (Build.VERSION.SDK_INT >= 26) {
+            ((Vibrator) getSystemService(VIBRATOR_SERVICE)).vibrate(VibrationEffect.createOneShot(250, VibrationEffect.DEFAULT_AMPLITUDE));
+        } else {
+            ((Vibrator) getSystemService(VIBRATOR_SERVICE)).vibrate(250);
+        }
+
         // proof of concept video sync
         String song = getMaskText();
         String videoPath = "";
@@ -201,6 +209,10 @@ public class MainActivity extends Activity
             videoPath = externalFilesDirStr + "/videos/siren_video.mp4";
         } else if (song.equals("fancy_audio.flac")) {
             videoPath = externalFilesDirStr + "/videos/fancy_video.mp4";
+        } else if (song.equals("chocolate_audio.flac")) {
+            videoPath = externalFilesDirStr + "/videos/chocolate_video.mp4";
+        } else if (song.equals("hey_audio.flac")) {
+            videoPath = externalFilesDirStr + "/videos/hey_video.mp4";
         }
 
         if (!videoPath.equals("")) {

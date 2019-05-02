@@ -99,7 +99,7 @@ AudioRecorder::AudioRecorder(SampleFormat *sampleFormat, SLEngineItf slEngine) :
                                             SL_IID_ANDROIDCONFIGURATION,
                                             &inputConfig);
     if (SL_RESULT_SUCCESS == result) {
-        SLuint32 presetValue = SL_ANDROID_RECORDING_PRESET_VOICE_RECOGNITION;
+        SLuint32 presetValue = SL_ANDROID_RECORDING_PRESET_GENERIC;
         (*inputConfig)->SetConfiguration(inputConfig,
                                          SL_ANDROID_KEY_RECORDING_PRESET,
                                          &presetValue,

@@ -1,6 +1,14 @@
 apply plugin: 'com.android.application'
 
 android {
+    signingConfigs {
+        release {
+            storeFile file('/home/evan/key_stores/ece420.jks')
+            storePassword 'Us3t!wI,?'
+            keyAlias = 'key0'
+            keyPassword 'Us3t!wI,?'
+        }
+    }
     compileSdkVersion 28
 
     defaultConfig {
