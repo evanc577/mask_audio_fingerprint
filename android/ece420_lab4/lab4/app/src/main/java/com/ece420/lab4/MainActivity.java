@@ -81,8 +81,8 @@ public class MainActivity extends Activity
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         setContentView(R.layout.activity_main);
+        getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         super.setRequestedOrientation (ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
 
         externalFilesDir = getExternalFilesDir(null);
@@ -120,6 +120,7 @@ public class MainActivity extends Activity
                 vv.setVisibility(View.INVISIBLE);
                 vv.stopPlayback();
                 vv.suspend();
+                getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
             }
         });
         vv.setOnPreparedListener(new MediaPlayer.OnPreparedListener() {
@@ -182,6 +183,7 @@ public class MainActivity extends Activity
             vv.stopPlayback();
             vv.suspend();
             isPlaying.set(true);
+            getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         } else {
             timeout();
         }
@@ -220,6 +222,9 @@ public class MainActivity extends Activity
             vv.seekTo(time);
             vv.start();
             vv.setVisibility(View.VISIBLE);
+            getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        } else {
+            getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         }
 
         // update spinner
@@ -227,6 +232,7 @@ public class MainActivity extends Activity
         spinner = (ProgressBar)findViewById(R.id.progressBar);
         spinner.setIndeterminate(false);
         spinner.setProgress(100);
+
 
         stopPlay();
         deleteIdentify();
@@ -249,6 +255,8 @@ public class MainActivity extends Activity
         spinner.setIndeterminate(false);
         spinner.setProgress(0);
 
+        getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+
         stopPlay();
         deleteIdentify();
         updateNativeAudioUI();
@@ -257,7 +265,7 @@ public class MainActivity extends Activity
         controlButton.setText(getString(R.string.StartEcho));
         controlButton.setBackground(getDrawable(R.drawable.start_button));
         freq_view.setVisibility(View.GONE);
-    start_view.setVisibility(View.VISIBLE);
+        start_view.setVisibility(View.VISIBLE);
     }
 
     public void onEchoClick(View view) {
