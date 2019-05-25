@@ -1,0 +1,47 @@
+[
+{
+  "directory": "/home/evan/mask_audio_fingerprint/c++/kfr",
+  "command": "clang++  -DKFR_NO_DFT -D__LINUX_PULSE__ -I/home/evan/mask_audio_fingerprint/c++/rtaudio -I/home/evan/mask_audio_fingerprint/c++/kfr/include        -mstackrealign -Wno-ignored-qualifiers -std=gnu++14 -o CMakeFiles/test.dir/main.cpp.o -c /home/evan/mask_audio_fingerprint/c++/main.cpp",
+  "file": "/home/evan/mask_audio_fingerprint/c++/main.cpp"
+},
+{
+  "directory": "/home/evan/mask_audio_fingerprint/c++/kfr",
+  "command": "clang++  -DKFR_NO_DFT -D__LINUX_PULSE__ -I/home/evan/mask_audio_fingerprint/c++/rtaudio -I/home/evan/mask_audio_fingerprint/c++/kfr/include        -mstackrealign -Wno-ignored-qualifiers -std=gnu++14 -o CMakeFiles/test.dir/fingerprint.cpp.o -c /home/evan/mask_audio_fingerprint/c++/fingerprint.cpp",
+  "file": "/home/evan/mask_audio_fingerprint/c++/fingerprint.cpp"
+},
+{
+  "directory": "/home/evan/mask_audio_fingerprint/c++/kfr",
+  "command": "clang++  -DKFR_NO_DFT -D__LINUX_PULSE__ -I/home/evan/mask_audio_fingerprint/c++/rtaudio -I/home/evan/mask_audio_fingerprint/c++/kfr/include        -mstackrealign -Wno-ignored-qualifiers -std=gnu++14 -o CMakeFiles/test.dir/rtaudio/RtAudio.cpp.o -c /home/evan/mask_audio_fingerprint/c++/rtaudio/RtAudio.cpp",
+  "file": "/home/evan/mask_audio_fingerprint/c++/rtaudio/RtAudio.cpp"
+},
+{
+  "directory": "/home/evan/mask_audio_fingerprint/c++/kfr",
+  "command": "clang++  -DKFR_NO_DFT -D__LINUX_PULSE__ -I/home/evan/mask_audio_fingerprint/c++/rtaudio -I/home/evan/mask_audio_fingerprint/c++/kfr/include        -mstackrealign -Wno-ignored-qualifiers -std=gnu++14 -o CMakeFiles/test.dir/include/kfr/dft/impl/convolution-impl.cpp.o -c /home/evan/mask_audio_fingerprint/c++/kfr/include/kfr/dft/impl/convolution-impl.cpp",
+  "file": "/home/evan/mask_audio_fingerprint/c++/kfr/include/kfr/dft/impl/convolution-impl.cpp"
+},
+{
+  "directory": "/home/evan/mask_audio_fingerprint/c++/kfr",
+  "command": "clang++  -DKFR_NO_DFT -D__LINUX_PULSE__ -I/home/evan/mask_audio_fingerprint/c++/rtaudio -I/home/evan/mask_audio_fingerprint/c++/kfr/include        -mstackrealign -Wno-ignored-qualifiers -std=gnu++14 -o CMakeFiles/test.dir/include/kfr/dft/impl/dft-impl-f32.cpp.o -c /home/evan/mask_audio_fingerprint/c++/kfr/include/kfr/dft/impl/dft-impl-f32.cpp",
+  "file": "/home/evan/mask_audio_fingerprint/c++/kfr/include/kfr/dft/impl/dft-impl-f32.cpp"
+},
+{
+  "directory": "/home/evan/mask_audio_fingerprint/c++/kfr",
+  "command": "clang++  -DKFR_NO_DFT -D__LINUX_PULSE__ -I/home/evan/mask_audio_fingerprint/c++/rtaudio -I/home/evan/mask_audio_fingerprint/c++/kfr/include        -mstackrealign -Wno-ignored-qualifiers -std=gnu++14 -o CMakeFiles/test.dir/include/kfr/dft/impl/dft-impl-f64.cpp.o -c /home/evan/mask_audio_fingerprint/c++/kfr/include/kfr/dft/impl/dft-impl-f64.cpp",
+  "file": "/home/evan/mask_audio_fingerprint/c++/kfr/include/kfr/dft/impl/dft-impl-f64.cpp"
+},
+{
+  "directory": "/home/evan/mask_audio_fingerprint/c++/kfr",
+  "command": "clang++  -DKFR_NO_DFT -D__LINUX_PULSE__ -I/home/evan/mask_audio_fingerprint/c++/rtaudio -I/home/evan/mask_audio_fingerprint/c++/kfr/include        -mstackrealign -Wno-ignored-qualifiers -std=gnu++14 -o CMakeFiles/test.dir/include/kfr/dft/impl/dft-src.cpp.o -c /home/evan/mask_audio_fingerprint/c++/kfr/include/kfr/dft/impl/dft-src.cpp",
+  "file": "/home/evan/mask_audio_fingerprint/c++/kfr/include/kfr/dft/impl/dft-src.cpp"
+},
+{
+  "directory": "/home/evan/mask_audio_fingerprint/c++/kfr",
+  "command": "clang++  -DKFR_NO_DFT -D__LINUX_PULSE__ -I/home/evan/mask_audio_fingerprint/c++/rtaudio -I/home/evan/mask_audio_fingerprint/c++/kfr/include        -mstackrealign -Wno-ignored-qualifiers -std=gnu++14 -o CMakeFiles/test.dir/include/kfr/dft/impl/fft-impl-f32.cpp.o -c /home/evan/mask_audio_fingerprint/c++/kfr/include/kfr/dft/impl/fft-impl-f32.cpp",
+  "file": "/home/evan/mask_audio_fingerprint/c++/kfr/include/kfr/dft/impl/fft-impl-f32.cpp"
+},
+{
+  "directory": "/home/evan/mask_audio_fingerprint/c++/kfr",
+  "command": "clang++  -DKFR_NO_DFT -D__LINUX_PULSE__ -I/home/evan/mask_audio_fingerprint/c++/rtaudio -I/home/evan/mask_audio_fingerprint/c++/kfr/include        -mstackrealign -Wno-ignored-qualifiers -std=gnu++14 -o CMakeFiles/test.dir/include/kfr/dft/impl/fft-impl-f64.cpp.o -c /home/evan/mask_audio_fingerprint/c++/kfr/include/kfr/dft/impl/fft-impl-f64.cpp",
+  "file": "/home/evan/mask_audio_fingerprint/c++/kfr/include/kfr/dft/impl/fft-impl-f64.cpp"
+}
+]

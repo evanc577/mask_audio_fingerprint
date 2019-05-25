@@ -1,0 +1,49 @@
+apply plugin: 'com.android.application'
+
+android {
+    signingConfigs {
+        release {
+            storeFile file('/home/evan/key_stores/ece420.jks')
+            storePassword 'Us3t!wI,?'
+            keyAlias = 'key0'
+            keyPassword 'Us3t!wI,?'
+        }
+    }
+    compileSdkVersion 28
+
+    defaultConfig {
+        applicationId 'com.ece420.lab4'
+        /*
+           To run on earlier version of Android than android-21, do:
+             *) set this minSDKVersion and cmake's ANDROID_PLATFORM to your version
+             *) set ANDROID_STL to c++_static for some very earlier version android.
+         */
+        minSdkVersion 23
+        targetSdkVersion 28
+        versionCode 1
+        versionName '1.0'
+        externalNativeBuild {
+            cmake {
+                arguments '-DANDROID_STL=c++_shared'
+            }
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'),
+                          'proguard-rules.pro'
+        }
+    }
+    externalNativeBuild {
+        cmake {
+            path 'src/main/cpp/CMakeLists.txt'
+        }
+    }
+}
+
+dependencies {
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
+    implementation 'com.android.support:appcompat-v7:25.4.0'
+    implementation 'com.android.support.constraint:constraint-layout:1.1.3'
+}
