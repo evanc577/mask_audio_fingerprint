@@ -1,5 +1,28 @@
 #include "identify.hpp"
 
+static kfr::univector<kfr::f64, BUF_SIZE> buf_1;
+static kfr::univector<kfr::f64, BUF_SIZE> buf_2;
+static kfr::univector<kfr::f64> input_buf;
+static kfr::univector<kfr::f64, BUF_SIZE> process_buf;
+
+static std::mutex mtx;
+static std::condition_variable cv;
+
+static std::mutex done_mtx;
+static std::condition_variable done_cv;
+
+static std::atomic<bool> buf_1_full(false);
+static std::atomic<bool> buf_2_full(false);
+static std::atomic<bool> done(false);
+
+static bool doing_buf_1;
+static int cur_idx;
+static int input_buf_n = 0;
+
+static fingerprint fp;
+static database fp_db("fingerprints.db");
+static database songs_db("songs.db");
+
 int audio_callback(void *outputBuffer, void *inputBuffer,
                    const unsigned int nBufferFrames, double streamTime,
                    RtAudioStreamStatus status, void *userData) {
@@ -109,7 +132,7 @@ void check_fingerprints() {
     // calculate fingerprints
     auto fingerprints = fp.get_fingerprints(process_buf);
 
-    std::cerr << fingerprints.size() << std::endl;
+    // std::cerr << fingerprints.size() << std::endl;
 
     // find matching fingerprints in database
     auto matches = find_matches(fingerprints);

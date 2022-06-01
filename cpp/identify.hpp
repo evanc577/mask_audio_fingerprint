@@ -28,29 +28,6 @@ static constexpr int BUF_SIZE = 2000;
 static constexpr int SAMPLE_RATE = 48000;
 static constexpr int BUFFER_FRAMES = 1200;
 
-kfr::univector<kfr::f64, BUF_SIZE> buf_1;
-kfr::univector<kfr::f64, BUF_SIZE> buf_2;
-kfr::univector<kfr::f64> input_buf;
-kfr::univector<kfr::f64, BUF_SIZE> process_buf;
-
-std::mutex mtx;
-std::condition_variable cv;
-
-std::mutex done_mtx;
-std::condition_variable done_cv;
-
-std::atomic<bool> buf_1_full(false);
-std::atomic<bool> buf_2_full(false);
-std::atomic<bool> done(false);
-
-bool doing_buf_1;
-int cur_idx;
-int input_buf_n = 0;
-
-fingerprint fp;
-database fp_db("fingerprints.db");
-database songs_db("songs.db");
-
 int audio_callback(void *outputBuffer, void *inputBuffer,
              const unsigned int nBufferFrames, double streamTime,
              RtAudioStreamStatus status, void *userData);
