@@ -28,7 +28,7 @@ std::vector<double> audio_helper::read_from_file(const std::string filename) {
   AVStream *stream = format->streams[stream_index];
 
   // find & open codec
-  AVCodec *c = avcodec_find_decoder(stream->codecpar->codec_id);
+  const AVCodec *c = avcodec_find_decoder(stream->codecpar->codec_id);
   AVCodecContext *codec = avcodec_alloc_context3(c);
   avcodec_parameters_to_context(codec, stream->codecpar);
   if (avcodec_open2(codec, c, NULL) < 0) {
