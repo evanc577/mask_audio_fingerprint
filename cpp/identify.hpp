@@ -21,7 +21,7 @@
 #include "kfr/dsp.hpp"
 #include "kfr/io.hpp"
 
-static constexpr int THRESHOLD = 5;
+static constexpr int THRESHOLD = 8;
 static constexpr int TIMEOUT = 15;
 
 static constexpr int BUF_SIZE = 2000;
