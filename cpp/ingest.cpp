@@ -1,13 +1,6 @@
 #include "ingest.hpp"
 
-int main(int argc, char **argv) {
-  // check arguments
-  if (argc != 2) {
-    std::cout << "Usage: " << argv[0] << " path/to/file" << std::endl;
-    return 1;
-  }
-
-  std::string fullpath = argv[1];
+int insert_file(const std::string &fullpath) {
   size_t last_slash_idx = fullpath.find_last_of('/');
   std::string filename;
   if (last_slash_idx != std::string::npos) {
@@ -20,7 +13,7 @@ int main(int argc, char **argv) {
   std::ifstream f(fullpath, std::ios::binary);
   if (f.fail()) {
     f.close();
-    std::cout << "Error: no such file " << argv[1] << std::endl;
+    std::cout << "Error: no such file " << fullpath << std::endl;
     return 1;
   }
   // calculate id
@@ -36,10 +29,9 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-
   // read file data
   audio_helper ah;
-  auto data = ah.read_from_file(argv[1]);
+  auto data = ah.read_from_file(fullpath);
   if (data.size() == 0) {
     std::cerr << "Bad file \"" << fullpath << "\"" << std::endl;
     return 1;
@@ -48,7 +40,6 @@ int main(int argc, char **argv) {
   // generate fingerpritns
   fingerprint fp;
   auto fingerprints = fp.get_fingerprints(data);
-
 
   // put fingerprints in database
   database fp_db("fingerprints.db");
@@ -66,3 +57,20 @@ int main(int argc, char **argv) {
 
   return 0;
 }
+
+int main(int argc, char **argv) {
+  // check arguments
+  if (argc < 2) {
+    std::cout << "Usage: " << argv[0] << " path/to/file [..]" << std::endl;
+    return 1;
+  }
+    
+  int ret = 0;
+  for (int i = 1; i < argc; ++i) {
+      std::string fullpath(argv[i]);
+      ret |= insert_file(fullpath);
+  }
+
+  return ret;
+}
+
